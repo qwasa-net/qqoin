@@ -1,0 +1,8 @@
+_kakas/
+_go/
+_venv/
+.venv/
+*.sqlite
+*.log
+*.bak
+
