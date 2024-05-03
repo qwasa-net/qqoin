@@ -12,18 +12,20 @@ func main() {
 	log.Println("qqoin is starting...")
 
 	storage := storage.QStorage{}
-	storage.Open(os.Getenv("STORAGE_PATH"), os.Getenv("STORAGE_ENGINE"))
+	storage.Open(os.Getenv("QQOIN_STORAGE_PATH"), os.Getenv("QQOIN_STORAGE_ENGINE"))
 	storage.Migrate()
+	storage.Prepare()
 
 	hooker := qTGHooker{
-		botToken:       os.Getenv("BOT_TOKEN"),
-		Name:           os.Getenv("BOT_NAME"),
-		WebAppUrl:      os.Getenv("WEBAPP_URL"),
-		botSecretToken: os.Getenv("BOT_SECRET_TOKEN"),
+		botToken:       os.Getenv("QQOIN_BOT_TOKEN"),
+		Name:           os.Getenv("QQOIN_BOT_NAME"),
+		WebAppUrl:      os.Getenv("QQOIN_WEBAPP_URL"),
+		botSecretToken: os.Getenv("QQOIN_BOT_SECRET_TOKEN"),
 		storage:        &storage,
 	}
+
 	backer := qWebAppBack{
-		botToken: os.Getenv("BOT_TOKEN"),
+		botToken: os.Getenv("QQOIN_BOT_TOKEN"),
 		storage:  &storage,
 	}
 

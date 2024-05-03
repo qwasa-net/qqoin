@@ -14,7 +14,7 @@ type Tap struct {
 	Updated_at time.Time `json:"updated_at"`
 }
 
-var tapTableSQL = `
+var tapTableDDL = `
 CREATE TABLE IF NOT EXISTS taps (
 	uid INTEGER PRIMARY KEY,
 	score INTEGER,
@@ -24,13 +24,44 @@ CREATE TABLE IF NOT EXISTS taps (
 )
 `
 
-func (s *QStorage) TapsMigrate() {
-	s.db.Exec(tapTableSQL)
+func (s *QStorage) MigrateTaps() {
+	s.db.Exec(tapTableDDL)
+}
+
+const tapGetStmt = 0
+const tapUpsertStmt = 1
+const tapInsertStmt = 2
+
+func (s *QStorage) PrepareTaps() {
+
+	//
+	sqlGet := `
+	SELECT uid, score, count, created_at, updated_at FROM taps WHERE uid=?
+	`
+	s.prepared[tapGetStmt], _ = s.db.Prepare(sqlGet)
+
+	//
+	sqlUpsert := `
+	INSERT INTO taps (uid, score, count, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?)
+	ON CONFLICT(uid) DO UPDATE SET count=count+1, score=score+?, updated_at=?
+	`
+	s.prepared[tapUpsertStmt], _ = s.db.Prepare(sqlUpsert)
+
+	//
+	sqlInsert := `
+	INSERT INTO taps (uid, score, count, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?)
+	`
+	s.prepared[tapInsertStmt], _ = s.db.Prepare(sqlInsert)
+
 }
 
 func (s *QStorage) GetTap(uid int64) (*Tap, error) {
-	var tap Tap
-	row := s.db.QueryRow(`SELECT uid, score, count, created_at, updated_at FROM taps WHERE uid = ?`, uid)
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	tap := Tap{}
+	row := s.prepared[tapGetStmt].QueryRow(uid)
 	err := row.Scan(&tap.UID, &tap.Score, &tap.Count, &tap.Created_at, &tap.Updated_at)
 	if err != nil {
 		return nil, err
@@ -40,20 +71,17 @@ func (s *QStorage) GetTap(uid int64) (*Tap, error) {
 }
 
 func (s *QStorage) CreateTap(tap *Tap) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	var now = time.Now()
-	_, err := s.db.Exec(`
-	INSERT INTO taps (uid, score, count, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?)
-	`, tap.UID, tap.Score, tap.Count, now, now)
+	_, err := s.prepared[tapInsertStmt].Exec(tap.UID, tap.Energy, tap.Count, now, now)
 	return err
 }
 
 func (s *QStorage) CreateUpdateTap(tap *Tap) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	var now = time.Now()
-	_, err := s.db.Exec(`
-	INSERT INTO taps (uid, score, count, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?)
-	ON CONFLICT(uid) DO UPDATE SET score = score + ?, count = count+1, updated_at = ?
-	`, tap.UID, tap.Score, tap.Count, now, now, tap.Energy, now)
+	_, err := s.prepared[tapUpsertStmt].Exec(tap.UID, tap.Energy, tap.Count, now, now, tap.Energy, now)
 	return err
 }

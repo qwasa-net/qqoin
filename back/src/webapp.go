@@ -20,10 +20,17 @@ type qWebAppBack struct {
 }
 
 type qWebAppTapInput struct {
-	Init   string `json:"init"`
-	Energy int64  `json:"e"`
-	Score  int64  `json:"s"`
-	UID    int64  `json:"uid"`
+	Init   string  `json:"init"`
+	Energy int64   `json:"e"`
+	Score  int64   `json:"s"`
+	XYZ    []int64 `json:"xyz"`
+	UID    int64   `json:"uid"`
+}
+
+type initParamUser struct {
+	Id        int64  `json:"id"`
+	Username  string `json:"username"`
+	IsPremium bool   `json:"is_premium"`
 }
 
 func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
@@ -40,9 +47,9 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 	log.Printf("Received message: %s\n", js)
 
 	// validate data received via the Mini App
-	valid := validateWebAppInitData(payload.Init, s.botToken)
+	valid := validateWebAppInitData(payload, s.botToken)
 	if !valid {
-		log.Printf("hash mismatch\n")
+		// log.Printf("invalid data init\n")
 		http.Error(rsp, "", http.StatusForbidden)
 		return
 	}
@@ -73,7 +80,7 @@ func (s *qWebAppBack) getTaps(rsp http.ResponseWriter, payload qWebAppTapInput) 
 func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInput) {
 	tap := &storage.Tap{
 		UID:    int64(payload.UID),
-		Score:  int64(payload.Score),
+		Score:  0, //int64(payload.Score),
 		Energy: int64(payload.Energy),
 		Count:  1,
 	}
@@ -82,33 +89,53 @@ func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInpu
 		log.Printf("Error updating tap: %v\n", err)
 		http.Error(rsp, err.Error(), http.StatusInternalServerError)
 	}
-	dbtap, _ := s.storage.GetTap(int64(payload.UID))
-	js, _ := json.Marshal(dbtap)
-	log.Printf("tap updated: %s\n", js)
+	// dbtap, _ := s.storage.GetTap(int64(payload.UID))
+	// js, _ := json.Marshal(dbtap)
+	// log.Printf("tap updated: %s\n", js)
 	rsp.Header().Set("Content-Type", "application/json")
 	rsp.WriteHeader(http.StatusOK)
 	rsp.Write([]byte(`{"status":"ok"}`))
 }
 
-func validateWebAppInitData(s string, botToken string) bool {
+func validateWebAppInitData(payload qWebAppTapInput, botToken string) bool {
+	var err error
+	initParams, err := url.ParseQuery(payload.Init)
+	if err != nil {
+		log.Printf("failed to read init query parameter\n")
+		return false
+	}
+	valid := validateWebAppInitDataHash(initParams, botToken)
+	if !valid {
+		log.Printf("hash mismatch\n")
+		return false
+	}
+	var initUser initParamUser
+	err = json.NewDecoder(strings.NewReader(initParams.Get("user"))).Decode(&initUser)
+	if err != nil {
+		log.Printf("Error decoding incoming message: %v\n", err)
+		return false
+	}
+	if initUser.Id != payload.UID {
+		log.Printf("UID mismatch: %v≠%v\n", initUser.Id, payload.UID)
+		return false
+	}
+	return true
+}
+
+func validateWebAppInitDataHash(values url.Values, botToken string) bool {
 	// To validate data received via the Mini App,
 	// one should send the data from the Telegram.WebApp.initData field to the bot's backend.
 	// The data is a query string, which is composed of a series of field-value pairs.
 	// https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
-
-	values, err := url.ParseQuery(s)
-	if err != nil {
-		return false
-	}
-
 	receivedHash := values.Get("hash")
-	values.Del("hash")
 
 	// Data-check-string is a chain of all received fields, sorted alphabetically
 	// in the format key=<value> with a line feed character
 	var keys []string
 	for k := range values {
-		keys = append(keys, k)
+		if k != "hash" {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 	dataCheckString := ""
@@ -127,5 +154,6 @@ func validateWebAppInitData(s string, botToken string) bool {
 	expectedHash := hex.EncodeToString(h.Sum(nil))
 
 	// ∃:o
-	return hmac.Equal([]byte(receivedHash), []byte(expectedHash))
+	// return hmac.Equal([]byte(receivedHash), []byte(expectedHash))
+	return receivedHash == expectedHash
 }
