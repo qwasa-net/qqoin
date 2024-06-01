@@ -50,4 +50,6 @@ func main() {
 
 	err := http.ListenAndServe(listen, handler)
 	log.Printf("Error: %s\n", err.Error())
+
+	storage.Close()
 }

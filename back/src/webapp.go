@@ -49,8 +49,7 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 	// validate data received via the Mini App
 	valid := validateWebAppInitData(payload, s.botToken)
 	if !valid {
-		// log.Printf("invalid data init\n")
-		http.Error(rsp, "", http.StatusForbidden)
+		// http.Error(rsp, "", http.StatusForbidden)
 		return
 	}
 
@@ -80,7 +79,7 @@ func (s *qWebAppBack) getTaps(rsp http.ResponseWriter, payload qWebAppTapInput) 
 func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInput) {
 	tap := &storage.Tap{
 		UID:    int64(payload.UID),
-		Score:  0, //int64(payload.Score),
+		Score:  0,
 		Energy: int64(payload.Energy),
 		Count:  1,
 	}
@@ -89,6 +88,7 @@ func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInpu
 		log.Printf("Error updating tap: %v\n", err)
 		http.Error(rsp, err.Error(), http.StatusInternalServerError)
 	}
+	// 2do -- fetch back in DEBUG MODE
 	// dbtap, _ := s.storage.GetTap(int64(payload.UID))
 	// js, _ := json.Marshal(dbtap)
 	// log.Printf("tap updated: %s\n", js)

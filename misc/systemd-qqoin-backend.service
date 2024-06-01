@@ -1,0 +1,23 @@
+[Unit]
+Description=QQion backend service
+After=nginx.service
+
+[Install]
+WantedBy=default.target
+
+[Service]
+Type=simple
+ExecStart=/home/qqoin/qqoin.backend
+EnvironmentFile=/home/qqoin/qqoin.env
+
+StandardOutput=append:/home/qqoin/logs/stdout.log
+StandardError=append:/home/qqoin/logs/stderr.log
+
+Restart=on-failure
+RestartSec=5
+RuntimeMaxSec=86400
+TimeoutStopSec=1
+
+User=qqoin
+Group=nogroup
+
