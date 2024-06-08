@@ -52,8 +52,8 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 	valid, msq := validateWebAppInitData(payload, s.Opts.botToken)
 	if !valid {
 		log.Printf("Failed message validation: %s\n", msq)
-		// invalid hash is rejected unless in debug mode
-		if !(s.Opts.webappIgnoreHash || s.Opts.debug) {
+		// reject invalid hash
+		if !s.Opts.webappIgnoreHash {
 			http.Error(rsp, "", http.StatusForbidden)
 			return
 		}
