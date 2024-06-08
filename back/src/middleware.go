@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func Logging(next http.Handler) http.Handler {
+func Logging(next http.Handler, opts *QQOptions) http.Handler {
 	return http.HandlerFunc(func(rsp http.ResponseWriter, req *http.Request) {
 		realIp := req.Header.Get("X-Real-IP")
 		if realIp == "" {

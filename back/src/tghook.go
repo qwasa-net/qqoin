@@ -10,11 +10,8 @@ import (
 )
 
 type qTGHooker struct {
-	botToken       string
-	botSecretToken string
-	Name           string
-	WebAppUrl      string
-	storage        *storage.QStorage
+	Opts    *QQOptions
+	storage *storage.QStorage
 }
 
 type tgHookPayload struct {
@@ -49,7 +46,7 @@ var helloReplyTemplate = `{
 {{ else }}
 "text": "hello! I'm qQoin bot. Let's play a game!",
 {{end}}
-"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.Server.WebAppUrl}}\"}}]]}"
+"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
 }`
 
 func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
@@ -85,9 +82,9 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 }
 
 func (s *qTGHooker) validateSecretToken(req *http.Request) bool {
-	if s.botSecretToken != "" {
+	if s.Opts.botSecretToken != "" {
 		botSecretToken := req.Header.Get("X-Telegram-Bot-Api-Secret-Token")
-		if botSecretToken != s.botSecretToken {
+		if botSecretToken != s.Opts.botSecretToken {
 			return false
 		}
 	}
@@ -97,13 +94,13 @@ func (s *qTGHooker) validateSecretToken(req *http.Request) bool {
 func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
 	_, dbtap := s.getUserTap(msg)
 	type tmplData struct {
-		Message tgMessage
-		Server  qTGHooker
-		Tap     storage.Tap
+		Message   tgMessage
+		WebAppUrl string
+		Tap       storage.Tap
 	}
 	tmpl, _ := template.New("").Parse(helloReplyTemplate)
 	rsp.Header().Set("Content-Type", "application/json")
-	err := tmpl.Execute(rsp, tmplData{Message: msg, Server: *s, Tap: *dbtap})
+	err := tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, Tap: *dbtap})
 	if err != nil {
 		log.Printf("error executing template: %v\n", err)
 	}

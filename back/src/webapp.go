@@ -15,8 +15,8 @@ import (
 )
 
 type qWebAppBack struct {
-	botToken string
-	storage  *storage.QStorage
+	Opts    *QQOptions
+	storage *storage.QStorage
 }
 
 type qWebAppTapInput struct {
@@ -47,9 +47,10 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 	log.Printf("Received message: %s\n", js)
 
 	// validate data received via the Mini App
-	valid := validateWebAppInitData(payload, s.botToken)
-	if !valid {
-		// http.Error(rsp, "", http.StatusForbidden)
+	valid := validateWebAppInitData(payload, s.Opts.botToken)
+	if !valid && !(s.Opts.webappIgnoreHash || s.Opts.debug) {
+		// invalid hash is rejected unless in debug mode
+		http.Error(rsp, "", http.StatusForbidden)
 		return
 	}
 
@@ -88,10 +89,11 @@ func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInpu
 		log.Printf("Error updating tap: %v\n", err)
 		http.Error(rsp, err.Error(), http.StatusInternalServerError)
 	}
-	// 2do -- fetch back in DEBUG MODE
-	// dbtap, _ := s.storage.GetTap(int64(payload.UID))
-	// js, _ := json.Marshal(dbtap)
-	// log.Printf("tap updated: %s\n", js)
+	if s.Opts.debug {
+		dbtap, _ := s.storage.GetTap(int64(payload.UID))
+		js, _ := json.Marshal(dbtap)
+		log.Printf("tap updated: %s\n", js)
+	}
 	rsp.Header().Set("Content-Type", "application/json")
 	rsp.WriteHeader(http.StatusOK)
 	rsp.Write([]byte(`{"status":"ok"}`))

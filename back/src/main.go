@@ -1,33 +1,127 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"qqoin.backend/storage"
 )
 
+type QQOptions struct {
+	debug bool
+
+	storageOpts storage.QSOptions
+
+	botToken       string
+	botName        string
+	botSecretToken string
+
+	webappURL        string
+	webappIgnoreHash bool
+
+	listen string
+}
+
+func getEnvs(name string, fallback string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func getEnvb(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	value = strings.ToLower(value)
+	if value == "true" || value == "1" || value == "yes" {
+		return true
+	}
+	return false
+}
+
+func parseArgs() QQOptions {
+
+	opts := QQOptions{
+
+		debug: false,
+
+		storageOpts: storage.QSOptions{
+			StoragePath:   getEnvs("QQOIN_STORAGE_PATH", "qqoin.db"),
+			StorageEngine: getEnvs("QQOIN_STORAGE_ENGINE", "sqlite"),
+		},
+
+		botToken:       getEnvs("QQOIN_BOT_TOKEN", ""),
+		botName:        getEnvs("QQOIN_BOT_NAME", ""),
+		botSecretToken: getEnvs("QQOIN_BOT_SECRET_TOKEN", ""),
+
+		webappURL:        getEnvs("QQOIN_WEBAPP_URL", "https://qqoin.qwasa.net/"),
+		webappIgnoreHash: getEnvb("QQOIN_WEBAPP_IGNORE_HASH", false),
+
+		listen: getEnvs("QQOIN_LISTEN", "localhost:8765"),
+	}
+
+	flag.StringVar(&opts.storageOpts.StoragePath, "storage-path", opts.storageOpts.StoragePath,
+		"database connect string")
+	flag.StringVar(&opts.storageOpts.StorageEngine, "storage-engine", opts.storageOpts.StorageEngine,
+		"database type -- SQLITE is the only one suppoerted at tme moment")
+	flag.StringVar(&opts.botToken, "bot-token", opts.botToken,
+		"TG bot access token")
+	flag.StringVar(&opts.botName, "bot-name", opts.botName,
+		"TG bot name")
+	flag.StringVar(&opts.botSecretToken, "bot-secret", opts.botSecretToken,
+		"TG bot secret key (used in input data validation)")
+	flag.StringVar(&opts.webappURL, "webapp-url", opts.webappURL,
+		"TMA URL")
+	flag.StringVar(&opts.listen, "listen", opts.listen,
+		"Back+Bot listen address")
+	flag.BoolVar(&opts.webappIgnoreHash, "webapp-ignore-hash", opts.webappIgnoreHash,
+		"")
+	flag.BoolVar(&opts.debug, "debug", opts.debug,
+		"")
+
+	flag.Parse()
+
+	if opts.debug {
+		log.Printf("Configuration: %v\n", opts)
+	}
+
+	return opts
+}
+
 func main() {
 	log.Println("qqoin is starting...")
 
-	storage := storage.QStorage{}
-	storage.Open(os.Getenv("QQOIN_STORAGE_PATH"), os.Getenv("QQOIN_STORAGE_ENGINE"))
+	opts := parseArgs()
+
+	storage := storage.QStorage{Opts: &opts.storageOpts}
+	storage.Open()
 	storage.Migrate()
 	storage.Prepare()
 
 	hooker := qTGHooker{
-		botToken:       os.Getenv("QQOIN_BOT_TOKEN"),
-		Name:           os.Getenv("QQOIN_BOT_NAME"),
-		WebAppUrl:      os.Getenv("QQOIN_WEBAPP_URL"),
-		botSecretToken: os.Getenv("QQOIN_BOT_SECRET_TOKEN"),
-		storage:        &storage,
+		Opts:    &opts,
+		storage: &storage,
 	}
 
 	backer := qWebAppBack{
-		botToken: os.Getenv("QQOIN_BOT_TOKEN"),
-		storage:  &storage,
+		Opts:    &opts,
+		storage: &storage,
 	}
+
+	err := run(&opts, &hooker, &backer)
+	log.Printf("Error: %s\n", err.Error())
+
+	storage.Close()
+
+}
+
+func run(opts *QQOptions, hooker *qTGHooker, backer *qWebAppBack) error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /ping/", pingHandler)
@@ -35,21 +129,11 @@ func main() {
 	mux.HandleFunc("GET /taps/", backer.tapsHandler)
 	mux.HandleFunc("POST /taps/", backer.tapsHandler)
 
-	handler := Logging(mux)
+	handler := Logging(mux, opts)
 
-	listen_host := os.Getenv("QQOIN_LISTEN_HOST")
-	if listen_host == "" {
-		listen_host = "localhost"
-	}
-	listen_port := os.Getenv("QQOIN_LISTEN_PORT")
-	if listen_port == "" {
-		listen_port = "8765"
-	}
-	listen := listen_host + ":" + listen_port
-	log.Printf("listening to: %v", listen)
+	log.Printf("listening to: %v", opts.listen)
+	err := http.ListenAndServe(opts.listen, handler)
 
-	err := http.ListenAndServe(listen, handler)
-	log.Printf("Error: %s\n", err.Error())
+	return err
 
-	storage.Close()
 }

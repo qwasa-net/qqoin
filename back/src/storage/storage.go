@@ -7,19 +7,21 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+type QSOptions struct {
+	StoragePath   string
+	StorageEngine string
+}
+
 type QStorage struct {
-	engine   string
-	path     string
+	Opts     *QSOptions
 	db       *sql.DB
 	lock     sync.RWMutex
 	prepared map[int]*sql.Stmt
 }
 
-func (s *QStorage) Open(path string, engine string) (*sql.DB, error) {
-	s.engine = "sqlite"
-	s.path = path
+func (s *QStorage) Open() (*sql.DB, error) {
 	s.prepared = make(map[int]*sql.Stmt)
-	pool, err := sql.Open(s.engine, path)
+	pool, err := sql.Open(s.Opts.StorageEngine, s.Opts.StoragePath)
 	s.db = pool
 	return pool, err
 }
