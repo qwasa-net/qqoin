@@ -49,7 +49,7 @@ func parseArgs() QQOptions {
 
 	opts := QQOptions{
 
-		debug: false,
+		debug: getEnvb("QQOIN_DEBUG", false),
 
 		storageOpts: storage.QSOptions{
 			StoragePath:   getEnvs("QQOIN_STORAGE_PATH", "qqoin.db"),

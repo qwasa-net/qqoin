@@ -68,7 +68,7 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	js, _ := json.Marshal(payload)
-	log.Printf("Received message: %s\n", js)
+	log.Printf("TGHook message: %s\n", js)
 
 	// select action based on message
 	switch payload.Message.Text {

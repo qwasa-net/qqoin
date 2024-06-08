@@ -43,15 +43,20 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 		http.Error(rsp, err.Error(), http.StatusBadRequest)
 		return
 	}
-	js, _ := json.Marshal(payload)
-	log.Printf("Received message: %s\n", js)
+	if s.Opts.debug {
+		js, _ := json.Marshal(payload)
+		log.Printf("WebApp message: %s\n", js)
+	}
 
 	// validate data received via the Mini App
-	valid := validateWebAppInitData(payload, s.Opts.botToken)
-	if !valid && !(s.Opts.webappIgnoreHash || s.Opts.debug) {
+	valid, msq := validateWebAppInitData(payload, s.Opts.botToken)
+	if !valid {
+		log.Printf("Failed message validation: %s\n", msq)
 		// invalid hash is rejected unless in debug mode
-		http.Error(rsp, "", http.StatusForbidden)
-		return
+		if !(s.Opts.webappIgnoreHash || s.Opts.debug) {
+			http.Error(rsp, "", http.StatusForbidden)
+			return
+		}
 	}
 
 	// get or update tap
@@ -99,29 +104,25 @@ func (s *qWebAppBack) updateTaps(rsp http.ResponseWriter, payload qWebAppTapInpu
 	rsp.Write([]byte(`{"status":"ok"}`))
 }
 
-func validateWebAppInitData(payload qWebAppTapInput, botToken string) bool {
+func validateWebAppInitData(payload qWebAppTapInput, botToken string) (bool, string) {
 	var err error
 	initParams, err := url.ParseQuery(payload.Init)
 	if err != nil {
-		log.Printf("failed to read init query parameter\n")
-		return false
+		return false, "failed to read query string"
 	}
 	valid := validateWebAppInitDataHash(initParams, botToken)
 	if !valid {
-		log.Printf("hash mismatch\n")
-		return false
+		return false, "hash mismatch"
 	}
 	var initUser initParamUser
 	err = json.NewDecoder(strings.NewReader(initParams.Get("user"))).Decode(&initUser)
 	if err != nil {
-		log.Printf("Error decoding incoming message: %v\n", err)
-		return false
+		return false, "failed to decode"
 	}
 	if initUser.Id != payload.UID {
-		log.Printf("UID mismatch: %v≠%v\n", initUser.Id, payload.UID)
-		return false
+		return false, "uid missmatch"
 	}
-	return true
+	return true, ""
 }
 
 func validateWebAppInitDataHash(values url.Values, botToken string) bool {
