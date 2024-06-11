@@ -60,7 +60,7 @@ func parseArgs() QQOptions {
 		botName:        getEnvs("QQOIN_BOT_NAME", ""),
 		botSecretToken: getEnvs("QQOIN_BOT_SECRET_TOKEN", ""),
 
-		webappURL:        getEnvs("QQOIN_WEBAPP_URL", "https://qqoin.qwasa.net/"),
+		webappURL:        getEnvs("QQOIN_WEBAPP_URL", "https://qqoin.qq/"),
 		webappIgnoreHash: getEnvb("QQOIN_WEBAPP_IGNORE_HASH", false),
 
 		listen: getEnvs("QQOIN_LISTEN", "localhost:8765"),

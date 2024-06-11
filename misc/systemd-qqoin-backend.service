@@ -1,5 +1,5 @@
 [Unit]
-Description=QQion backend service
+Description=QQoin backend service
 After=nginx.service
 
 [Install]

@@ -14,7 +14,7 @@ const qqoinapp = {
     hello: null,
 
     TIX: 30,
-    API_BASE_URL: "https://qqoin-api.qwasa.net/api/",
+    API_BASE_URL: "https://qqoin-api.qqoin.qq/api/",
     CONSOLE_LOGGING: window.location.protocol === "file:",
 
     log: function (...args) {
@@ -234,6 +234,9 @@ const qqoinapp = {
 
 const tg = window.Telegram.WebApp;
 if (tg) {
+    if (window.QQOIN_API_BASE_URL){
+        qqoinapp.API_BASE_URL = window.QQOIN_API_BASE_URL;
+    }
     window.addEventListener("load", (win, ev) => { qqoinapp.init(); });
 }
 
