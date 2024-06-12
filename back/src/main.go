@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"qqoin.backend/storage"
@@ -18,6 +19,7 @@ type QQOptions struct {
 	botToken       string
 	botName        string
 	botSecretToken string
+	botAdminUser   int64
 
 	webappURL        string
 	webappIgnoreHash bool
@@ -45,6 +47,18 @@ func getEnvb(name string, fallback bool) bool {
 	return false
 }
 
+func getEnvi(name string, fallback int64) int64 {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	i, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return i
+}
+
 func parseArgs() QQOptions {
 
 	opts := QQOptions{
@@ -59,6 +73,7 @@ func parseArgs() QQOptions {
 		botToken:       getEnvs("QQOIN_BOT_TOKEN", ""),
 		botName:        getEnvs("QQOIN_BOT_NAME", ""),
 		botSecretToken: getEnvs("QQOIN_BOT_SECRET_TOKEN", ""),
+		botAdminUser:   getEnvi("QQOIN_BOT_ADMIN_USER", 0),
 
 		webappURL:        getEnvs("QQOIN_WEBAPP_URL", "https://qqoin.qq/"),
 		webappIgnoreHash: getEnvb("QQOIN_WEBAPP_IGNORE_HASH", false),
@@ -76,6 +91,8 @@ func parseArgs() QQOptions {
 		"TG bot name")
 	flag.StringVar(&opts.botSecretToken, "bot-secret", opts.botSecretToken,
 		"TG bot secret key (used in input data validation)")
+	flag.Int64Var(&opts.botAdminUser, "bot-admin", opts.botAdminUser,
+		"TG bot admin user UID")
 	flag.StringVar(&opts.webappURL, "webapp-url", opts.webappURL,
 		"TMA URL")
 	flag.StringVar(&opts.listen, "listen", opts.listen,

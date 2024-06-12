@@ -38,17 +38,6 @@ type tgUser struct {
 	Username  string `json:"username"`
 }
 
-var helloReplyTemplate = `{
-"method": "sendMessage",
-"chat_id": "{{.Message.Chat.Id}}",
-{{if .Tap.Score}}
-"text": "welcome back, {{.Message.User.Username}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
-{{ else }}
-"text": "hello! I'm qQoin bot. Let's play a game!",
-{{end}}
-"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
-}`
-
 func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 
 	// validate bot secret token
@@ -74,8 +63,8 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 	switch payload.Message.Text {
 	case "/start":
 		s.tgHookStartHandler(rsp, payload.Message)
-	case "/hello":
-		s.tgHookStartHandler(rsp, payload.Message)
+	case "/admin":
+		s.tgHookAdminHandler(rsp, payload.Message)
 	default:
 		s.tgHookDefaultHandler(rsp, payload.Message)
 	}
@@ -90,6 +79,17 @@ func (s *qTGHooker) validateSecretToken(req *http.Request) bool {
 	}
 	return true
 }
+
+var helloReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	{{if .Tap.Score}}
+	"text": "welcome back, {{.Message.User.Username}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
+	{{ else }}
+	"text": "hello! I'm qQoin bot. Let's play a game!",
+	{{end}}
+	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
+}`
 
 func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
 	_, dbtap := s.getUserTap(msg)
@@ -130,4 +130,38 @@ func (s *qTGHooker) getUserTap(msg tgMessage) (*storage.User, *storage.Tap) {
 
 	return &user, dbtap
 
+}
+
+var usersListTemplate = `{{range .Users}}- {{.UID}} | {{.Username}} ({{.Name}})\n{{end}}`
+var tapsListTemplate = `{{range .Taps}}- {{.UID}} | {{.Score}}/{{.Count}}\n{{end}}`
+var adminReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "hello, {{.Message.User.Username}}!\n` +
+	`\n== recent users ==\n` +
+	usersListTemplate +
+	`\n== top taps ==\n` +
+	tapsListTemplate + `"
+}`
+
+func (s *qTGHooker) tgHookAdminHandler(rsp http.ResponseWriter, msg tgMessage) {
+	uid := msg.User.Id
+	if uid != s.Opts.botAdminUser {
+		log.Printf("access blocked for non-admin user: %v\n", uid)
+		s.tgHookDefaultHandler(rsp, msg)
+		return
+	}
+	users, _ := s.storage.GetAllUsers(100)
+	taps, _ := s.storage.GetAllTaps(100)
+	type tmplData struct {
+		Message tgMessage
+		Users   []storage.User
+		Taps    []storage.Tap
+	}
+	tmpl, _ := template.New("").Parse(adminReplyTemplate)
+	rsp.Header().Set("Content-Type", "application/json")
+	err := tmpl.Execute(rsp, tmplData{Message: msg, Users: users, Taps: taps})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
 }

@@ -31,6 +31,7 @@ func (s *QStorage) MigrateUsers() {
 const userGetStmt = 5
 const userUpsertStmt = 6
 const userInsertStmt = 7
+const userGetAllStmt = 8
 
 func (s *QStorage) PrepareUsers() {
 	//
@@ -53,6 +54,12 @@ func (s *QStorage) PrepareUsers() {
 	VALUES (?, ?, ?, ?, ?)
 	`
 	s.prepared[userInsertStmt], _ = s.db.Prepare(sqlInsert)
+
+	//
+	sqlGetAll := `
+	SELECT uid, username, name, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ?
+	`
+	s.prepared[userGetAllStmt], _ = s.db.Prepare(sqlGetAll)
 
 }
 
@@ -85,4 +92,26 @@ func (s *QStorage) CreateUpdateUser(user *User) error {
 	var now = time.Now()
 	_, err := s.prepared[userUpsertStmt].Exec(user.UID, user.Username, user.Name, user.Data, now, now, user.Username, user.Name, now)
 	return err
+}
+
+func (s *QStorage) GetAllUsers(limit int) ([]User, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	rows, err := s.prepared[userGetAllStmt].Query(limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		err = rows.Scan(&user.UID, &user.Username, &user.Name, &user.Created_at, &user.Updated_at)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
 }

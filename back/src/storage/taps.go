@@ -31,6 +31,7 @@ func (s *QStorage) MigrateTaps() {
 const tapGetStmt = 0
 const tapUpsertStmt = 1
 const tapInsertStmt = 2
+const tapGetAllStmt = 9
 
 func (s *QStorage) PrepareTaps() {
 
@@ -54,6 +55,12 @@ func (s *QStorage) PrepareTaps() {
 	VALUES (?, ?, ?, ?, ?)
 	`
 	s.prepared[tapInsertStmt], _ = s.db.Prepare(sqlInsert)
+
+	//
+	sqlGetAll := `
+	SELECT uid, score, count, created_at, updated_at FROM taps ORDER BY count DESC LIMIT ?
+	`
+	s.prepared[tapGetAllStmt], _ = s.db.Prepare(sqlGetAll)
 
 }
 
@@ -84,4 +91,25 @@ func (s *QStorage) CreateUpdateTap(tap *Tap) error {
 	var now = time.Now()
 	_, err := s.prepared[tapUpsertStmt].Exec(tap.UID, tap.Energy, tap.Count, now, now, tap.Energy, now)
 	return err
+}
+
+func (s *QStorage) GetAllTaps(limit int) ([]Tap, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	rows, err := s.prepared[tapGetAllStmt].Query(limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var taps []Tap
+	for rows.Next() {
+		var tap Tap
+		err = rows.Scan(&tap.UID, &tap.Score, &tap.Count, &tap.Created_at, &tap.Updated_at)
+		if err != nil {
+			return nil, err
+		}
+		tap.ScoreTotal = tap.Score
+		taps = append(taps, tap)
+	}
+	return taps, nil
 }
