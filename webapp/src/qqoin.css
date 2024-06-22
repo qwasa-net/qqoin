@@ -16,6 +16,14 @@ body {
     height: 100vh;
 }
 
+#wepabb {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    height: 100vh;
+}
+
 h1 {
     font-size: 1rem;
 }
@@ -74,19 +82,20 @@ h2 {
 
 #clicker_holder {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin: 12.5vh 0 0 0;
+    margin: -10vh 0 0 0;
+    flex: 2;
 }
 
 #clicker {
-    width: 75vw;
-    height: 65vw;
+    width: 77vw;
+    height: 66vw;
     background-color: wheat;
     border-radius: 15%;
     border: 0.2rem solid orange;
-    box-shadow: inset 0 0 3vw 3vw peru;
+    box-shadow: inset 0 0 2vw 2vw darkorange;
     font-size: 25vw;
     font-weight: bold;
     letter-spacing: -0.05em;
@@ -107,31 +116,32 @@ h2 {
 
 #clicker.soon {
     background-color: peachpuff;
+    border-color: salmon;
     transition: background-color 0s linear 0s;
 }
 
 #clicker.success {
+    box-shadow: inset 0 0 3vw 3vw darkgreen;
+    border-color: green;
     background-color: lime;
     transition: background-color 0s linear 0s;
 }
 
 #clicker.danger {
+    box-shadow: inset 0 0 3vw 3vw darkred;
     border-color: salmon;
     background-color: orangered;
-    color: yellow;
+    color: gold;
     transition: background-color 0s linear 0s;
 }
 
 footer {
-    font-size: 1rem;
-    line-height: 1.5rem;
+    font-size: 0.9rem;
+    letter-spacing: -0.05em;
+    line-height: 1.33rem;
     text-align: center;
     background-color: navy;
     color: gold;
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
 }
 
 #clicker,
@@ -154,10 +164,11 @@ footer {
 
 @media (orientation: landscape) {
     #clicker_holder {
-        margin: 2vh auto;
+        margin: 0;
     }
 
     #clicker {
+        margin-top: -10vh;
         width: 75vh;
         height: 55vh;
         font-size: 20vh;

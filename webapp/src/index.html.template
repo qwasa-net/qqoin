@@ -21,6 +21,7 @@
 </head>
 
 <body>
+<div id="wepabb">
     <h1 id="header"><span id="hello"></span><span id="title">#qQoin</span></h1>
     <span id="score_update"></span>
     <div id="score_holder">
@@ -35,7 +36,7 @@
         var QQOIN_API_BASE_URL = "https://qqoin-api./***QQOIN_WEB_BASE_HOST***//api/";
         /*** @/qqoin.min.js ***/
     </script>
-
+</div>
 </body>
 
 </html>

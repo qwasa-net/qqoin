@@ -12,6 +12,7 @@ const qqoinapp = {
     tix_countdown: 0,
     user_id: 0,
     hello: null,
+    xyz: null,
 
     TIX: 30,
     API_BASE_URL: "https://qqoin-api.qqoin.qq/api/",
@@ -111,11 +112,27 @@ const qqoinapp = {
         }
     },
 
+    fill_xyz: function (e) {
+        if (!e) { this.xyz = null; return; }
+        function asciisum(s) {
+            return String(s).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+        }
+        let now = Date.now();
+        xyz = [
+            now / 1000, now % 1000,
+            e.clientX, e.clientY, e.offsetX, e.offsetY, e.pageX, e.pageY,
+            asciisum(e.type),
+            asciisum(e.target && e.target.getAttribute("id"))
+        ];
+        this.xyz = xyz.map((v) => Math.floor(Number(v) || 0));
+    },
+
     handle_clicker_clicked: function (e) {
         if (qqoinapp.state == 0) {
             qqoinapp.start();
             return;
         }
+        qqoinapp.fill_xyz(e);
         if (qqoinapp.state == 2) {
             qqoinapp.recover();
             return;
@@ -174,8 +191,10 @@ const qqoinapp = {
             "hello": this.hello,
             "e": energy || 0,
             "s": this.score_total,
+            "xyz": this.xyz,
         };
         const url = this.API_BASE_URL + "taps/";
+        this.log("post_data_updates", url, data);
         try {
             fetch(url, {
                 method: 'POST',
@@ -194,6 +213,8 @@ const qqoinapp = {
             }).catch((error) => {
                 this.log(error);
                 if (cb_error) { cb_error(error); }
+            }).finally(() => {
+                this.fill_xyz(null);
             });
         } catch (error) {
             this.log(error);
@@ -234,7 +255,7 @@ const qqoinapp = {
 
 const tg = window.Telegram.WebApp;
 if (tg) {
-    if (window.QQOIN_API_BASE_URL){
+    if (window.QQOIN_API_BASE_URL) {
         qqoinapp.API_BASE_URL = window.QQOIN_API_BASE_URL;
     }
     window.addEventListener("load", (win, ev) => { qqoinapp.init(); });
