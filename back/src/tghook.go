@@ -44,8 +44,10 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 	valid := s.validateSecretToken(req)
 	if !valid {
 		log.Printf("bot secret token mismatch\n")
-		http.Error(rsp, "", http.StatusForbidden)
-		return
+		if !s.Opts.validationIgnore {
+			http.Error(rsp, "", http.StatusForbidden)
+			return
+		}
 	}
 
 	// decode incoming message

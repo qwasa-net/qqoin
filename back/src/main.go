@@ -8,21 +8,24 @@ import (
 	"strconv"
 	"strings"
 
+	"qqoin.backend/ledger"
 	"qqoin.backend/storage"
 )
 
 type QQOptions struct {
-	debug bool
+	debug            bool
+	validationIgnore bool
 
 	storageOpts storage.QSOptions
+
+	ledgerOpts ledger.LedgerOptions
 
 	botToken       string
 	botName        string
 	botSecretToken string
 	botAdminUser   int64
 
-	webappURL        string
-	webappIgnoreHash bool
+	webappURL string
 
 	listen string
 }
@@ -70,13 +73,20 @@ func parseArgs() QQOptions {
 			StorageEngine: getEnvs("QQOIN_STORAGE_ENGINE", "sqlite"),
 		},
 
+		ledgerOpts: ledger.LedgerOptions{
+			Path:       getEnvs("QQOIN_LEDGER_PATH", ""),
+			PathTs:     getEnvb("QQOIN_LEDGER_PATHTS", false),
+			FlushCount: getEnvi("QQOIN_LEDGER_FLUSH_COUNT", 100),
+			MaxRecords: getEnvi("QQOIN_LEDGER_RECORDS_MAX", 10000),
+		},
+
 		botToken:       getEnvs("QQOIN_BOT_TOKEN", ""),
 		botName:        getEnvs("QQOIN_BOT_NAME", ""),
 		botSecretToken: getEnvs("QQOIN_BOT_SECRET_TOKEN", ""),
 		botAdminUser:   getEnvi("QQOIN_BOT_ADMIN_USER", 0),
 
 		webappURL:        getEnvs("QQOIN_WEBAPP_URL", "https://qqoin.qq/"),
-		webappIgnoreHash: getEnvb("QQOIN_WEBAPP_IGNORE_HASH", false),
+		validationIgnore: getEnvb("QQOIN_VALIDATION_IGNORE", false),
 
 		listen: getEnvs("QQOIN_LISTEN", "localhost:8765"),
 	}
@@ -84,7 +94,7 @@ func parseArgs() QQOptions {
 	flag.StringVar(&opts.storageOpts.StoragePath, "storage-path", opts.storageOpts.StoragePath,
 		"database connect string")
 	flag.StringVar(&opts.storageOpts.StorageEngine, "storage-engine", opts.storageOpts.StorageEngine,
-		"database type -- SQLITE is the only one suppoerted at tme moment")
+		"database type -- SQLITE is the only one supported at tme moment")
 	flag.StringVar(&opts.botToken, "bot-token", opts.botToken,
 		"TG bot access token")
 	flag.StringVar(&opts.botName, "bot-name", opts.botName,
@@ -97,8 +107,12 @@ func parseArgs() QQOptions {
 		"TMA URL")
 	flag.StringVar(&opts.listen, "listen", opts.listen,
 		"Back+Bot listen address")
-	flag.BoolVar(&opts.webappIgnoreHash, "webapp-ignore-hash", opts.webappIgnoreHash,
+	flag.BoolVar(&opts.validationIgnore, "ignore-validation", opts.validationIgnore,
 		"")
+	flag.StringVar(&opts.ledgerOpts.Path, "ledger-file", opts.ledgerOpts.Path,
+		"ledger dump file name")
+	flag.BoolVar(&opts.ledgerOpts.PathTs, "ledger-file-ts", opts.ledgerOpts.PathTs,
+		"add timestamp to ledger dump file name")
 	flag.BoolVar(&opts.debug, "debug", opts.debug,
 		"")
 
@@ -116,25 +130,39 @@ func main() {
 
 	opts := parseArgs()
 
-	storage := storage.QStorage{Opts: &opts.storageOpts}
-	storage.Open()
-	storage.Migrate()
-	storage.Prepare()
+	// db storage
+	strg := storage.NewQStorage(&opts.storageOpts)
 
-	hooker := qTGHooker{
-		Opts:    &opts,
-		storage: &storage,
+	// ledger logger
+	var ldgr *ledger.Ledger
+	if opts.ledgerOpts.Path != "" {
+		ldgr = ledger.NewLedger(&opts.ledgerOpts)
+		if ldgr != nil {
+			go ldgr.Start()
+		}
 	}
 
+	// tg hook handler
+	hooker := qTGHooker{
+		Opts:    &opts,
+		storage: strg,
+	}
+
+	// webapp handler
 	backer := qWebAppBack{
 		Opts:    &opts,
-		storage: &storage,
+		storage: strg,
+		ledger:  ldgr,
 	}
 
 	err := run(&opts, &hooker, &backer)
-	log.Printf("Error: %s\n", err.Error())
+	log.Printf("error: %s\n", err.Error())
 
-	storage.Close()
+	log.Println("qqoin is shutting down...")
+	strg.Close()
+	if ldgr != nil {
+		ldgr.Close()
+	}
 
 }
 

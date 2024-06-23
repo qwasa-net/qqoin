@@ -5,18 +5,22 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
+	"qqoin.backend/ledger"
 	"qqoin.backend/storage"
 )
 
 type qWebAppBack struct {
 	Opts    *QQOptions
 	storage *storage.QStorage
+	ledger  *ledger.Ledger
 }
 
 type qWebAppTapInput struct {
@@ -53,7 +57,7 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 	if !valid {
 		log.Printf("Failed message validation: %s\n", msq)
 		// reject invalid hash
-		if !s.Opts.webappIgnoreHash {
+		if !s.Opts.validationIgnore {
 			http.Error(rsp, "", http.StatusForbidden)
 			return
 		}
@@ -64,6 +68,9 @@ func (s *qWebAppBack) tapsHandler(rsp http.ResponseWriter, req *http.Request) {
 		s.getTaps(rsp, payload)
 	} else {
 		s.updateTaps(rsp, payload)
+		if s.ledger != nil {
+			s.ledger.PutRecord(BuildLedgerRecord(req, payload))
+		}
 	}
 
 }
@@ -159,4 +166,15 @@ func validateWebAppInitDataHash(values url.Values, botToken string) bool {
 	// ∃:o
 	// return hmac.Equal([]byte(receivedHash), []byte(expectedHash))
 	return receivedHash == expectedHash
+}
+
+func BuildLedgerRecord(req *http.Request, payload qWebAppTapInput) []string {
+	return []string{
+		req.RemoteAddr,
+		req.Header.Get("X-Real-IP"),
+		strconv.FormatInt(payload.Energy, 10),
+		strconv.FormatInt(payload.Score, 10),
+		fmt.Sprintf("%v", payload.XYZ),
+		strconv.FormatInt(payload.UID, 10),
+	}
 }

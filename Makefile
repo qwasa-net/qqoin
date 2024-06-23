@@ -29,8 +29,10 @@ back.build:
 
 
 back.run:
+	set -o allexport && \
+	source $(realpath $(ENVFILE)) && \
 	cd $(BACK_DIR)/src && \
-	$(GO_RUN) .
+	$(GO_RUN) . -debug
 
 
 back.docker-image-build:
@@ -39,7 +41,7 @@ back.docker-image-build:
 
 
 back.docker-container-run:
-	docker run --publish-all --interactive --rm --env-file=$(ENVFILE) $(DOCKER_IMAGE_NAME)
+	docker run --publish 8765:8765 --interactive --rm --env-file=$(realpath $(ENVFILE)) $(DOCKER_IMAGE_NAME)
 
 
 webapp.build:

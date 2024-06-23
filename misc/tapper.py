@@ -54,6 +54,7 @@ API_TAP_REQUEST = {
     "e": 64,
     "s": 6759,
     "uid": 6163587238,
+    "xyz": [0] * 10,
 }
 
 API_CALLS = 0
@@ -130,8 +131,8 @@ def run_multi_tappers(runs=5, c=None, m=5):
 def read_params():
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-url", type=str, default="http://127.0.0.1:8765")
-    parser.add_argument("--runs", type=int, default=7)
-    parser.add_argument("--taps", type=int, default=100)
+    parser.add_argument("--runs", type=int, default=3)
+    parser.add_argument("--taps", type=int, default=50)
     parser.add_argument("--plls", type=int, default=5)
     params = parser.parse_args()
     global API_BASE
