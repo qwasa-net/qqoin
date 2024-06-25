@@ -43,6 +43,7 @@ func (l *Ledger) PutRecord(record []string) {
 
 // Close closes the ledger
 func (l *Ledger) Close() {
+	log.Println("ledger closing …")
 	close(l.done)
 }
 
@@ -56,7 +57,7 @@ func (l *Ledger) createWriter() error {
 		fileName = l.Opts.Path
 	}
 
-	log.Printf("Openning ledger file: %s\n", fileName)
+	log.Printf("ledger file: %s\n", fileName)
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -69,6 +70,16 @@ func (l *Ledger) createWriter() error {
 	return nil
 }
 
+// flush writer
+func (l *Ledger) flush() {
+	if l.writer != nil {
+		l.writer.Flush()
+	}
+	if l.file != nil {
+		l.file.Sync()
+	}
+}
+
 // read from channel and dump records to file
 func (l *Ledger) Start() {
 
@@ -78,27 +89,24 @@ func (l *Ledger) Start() {
 	for {
 		select {
 		case record := <-l.recordChan:
-			if lines == 0 && lines%l.Opts.MaxRecords == 0 {
+			if lines == 0 || (l.Opts.MaxRecords > 0 && lines%l.Opts.MaxRecords == 0) {
 				err = l.createWriter()
 				if err != nil {
-					log.Printf("Error creating writer: %v\n", err)
+					log.Printf("ledger error: %v\n", err)
 					return
 				}
 			}
 			err = l.writer.Write(record)
 			if err != nil {
-				log.Printf("Error writing record to file: %v\n", err)
+				log.Printf("ledger error: %v\n", err)
 				return
 			}
 			lines++
 			if l.Opts.FlushCount > 0 && lines%l.Opts.FlushCount == 0 {
-				l.writer.Flush()
-				l.file.Sync()
+				l.flush()
 			}
 		case <-l.done:
-			l.writer.Flush()
-			l.file.Sync()
-			l.file.Close()
+			l.flush()
 			return
 		}
 	}

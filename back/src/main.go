@@ -3,10 +3,7 @@ package main
 import (
 	"flag"
 	"log"
-	"net/http"
-	"os"
-	"strconv"
-	"strings"
+	"time"
 
 	"qqoin.backend/ledger"
 	"qqoin.backend/storage"
@@ -30,38 +27,6 @@ type QQOptions struct {
 	listen string
 }
 
-func getEnvs(name string, fallback string) string {
-	value := os.Getenv(name)
-	if value == "" {
-		return fallback
-	}
-	return value
-}
-
-func getEnvb(name string, fallback bool) bool {
-	value := os.Getenv(name)
-	if value == "" {
-		return fallback
-	}
-	value = strings.ToLower(value)
-	if value == "true" || value == "1" || value == "yes" {
-		return true
-	}
-	return false
-}
-
-func getEnvi(name string, fallback int64) int64 {
-	value := os.Getenv(name)
-	if value == "" {
-		return fallback
-	}
-	i, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return fallback
-	}
-	return i
-}
-
 func parseArgs() QQOptions {
 
 	opts := QQOptions{
@@ -77,7 +42,7 @@ func parseArgs() QQOptions {
 			Path:       getEnvs("QQOIN_LEDGER_PATH", ""),
 			PathTs:     getEnvb("QQOIN_LEDGER_PATHTS", false),
 			FlushCount: getEnvi("QQOIN_LEDGER_FLUSH_COUNT", 100),
-			MaxRecords: getEnvi("QQOIN_LEDGER_RECORDS_MAX", 10000),
+			MaxRecords: getEnvi("QQOIN_LEDGER_RECORDS_MAX", 0),
 		},
 
 		botToken:       getEnvs("QQOIN_BOT_TOKEN", ""),
@@ -126,59 +91,47 @@ func parseArgs() QQOptions {
 }
 
 func main() {
-	log.Println("qqoin is starting...")
+	log.Println("qqoin is starting …")
 
 	opts := parseArgs()
 
-	// db storage
+	// create db storage
 	strg := storage.NewQStorage(&opts.storageOpts)
+	defer strg.Close()
 
-	// ledger logger
+	// create ledger logger
 	var ldgr *ledger.Ledger
 	if opts.ledgerOpts.Path != "" {
 		ldgr = ledger.NewLedger(&opts.ledgerOpts)
 		if ldgr != nil {
 			go ldgr.Start()
 		}
+		defer ldgr.Close()
 	}
 
-	// tg hook handler
+	// create tg hook handler
 	hooker := qTGHooker{
 		Opts:    &opts,
 		storage: strg,
 	}
 
-	// webapp handler
+	// create webapp handler
 	backer := qWebAppBack{
 		Opts:    &opts,
 		storage: strg,
 		ledger:  ldgr,
 	}
 
-	err := run(&opts, &hooker, &backer)
-	log.Printf("error: %s\n", err.Error())
-
-	log.Println("qqoin is shutting down...")
-	strg.Close()
-	if ldgr != nil {
-		ldgr.Close()
+	// run http server
+	err := runServer(&opts, &hooker, &backer)
+	if err != nil {
+		log.Printf("server run failed: %s\n", err.Error())
 	}
 
-}
+	// server is down now -- time to shutdown
+	log.Println("qqoin is shutting down …")
 
-func run(opts *QQOptions, hooker *qTGHooker, backer *qWebAppBack) error {
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /ping/", pingHandler)
-	mux.HandleFunc("POST /tghook/", hooker.tgHookHandler)
-	mux.HandleFunc("GET /taps/", backer.tapsHandler)
-	mux.HandleFunc("POST /taps/", backer.tapsHandler)
-
-	handler := Logging(mux, opts)
-
-	log.Printf("listening to: %v", opts.listen)
-	err := http.ListenAndServe(opts.listen, handler)
-
-	return err
+	// time to sleep
+	time.Sleep(123 * time.Millisecond)
 
 }

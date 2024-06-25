@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"log"
 	"sync"
 
 	_ "modernc.org/sqlite"
@@ -31,6 +32,7 @@ func NewQStorage(opts *QSOptions) *QStorage {
 
 func (s *QStorage) Open() (*sql.DB, error) {
 	s.prepared = make(map[int]*sql.Stmt)
+	log.Printf("storage db file: %s:%s\n", s.Opts.StorageEngine, s.Opts.StoragePath)
 	pool, err := sql.Open(s.Opts.StorageEngine, s.Opts.StoragePath)
 	s.db = pool
 	return pool, err
@@ -54,5 +56,6 @@ func (s *QStorage) Close() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.db.Exec("VACUUM")
+	log.Println("storage closing …")
 	return s.db.Close()
 }
