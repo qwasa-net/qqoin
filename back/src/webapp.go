@@ -5,13 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"qqoin.backend/ledger"
 	"qqoin.backend/storage"
@@ -169,12 +169,19 @@ func validateWebAppInitDataHash(values url.Values, botToken string) bool {
 }
 
 func BuildLedgerRecord(req *http.Request, payload qWebAppTapInput) []string {
+	// convert payload.XYZ to []string
+	xyzs := make([]string, len(payload.XYZ))
+	for i, v := range payload.XYZ {
+		xyzs[i] = strconv.FormatInt(v, 10)
+	}
+
 	return []string{
+		"tap",
+		strconv.FormatInt(time.Now().Unix(), 10),
 		req.RemoteAddr,
 		req.Header.Get("X-Real-IP"),
 		strconv.FormatInt(payload.Energy, 10),
-		strconv.FormatInt(payload.Score, 10),
-		fmt.Sprintf("%v", payload.XYZ),
 		strconv.FormatInt(payload.UID, 10),
+		strings.Join(xyzs, ":"),
 	}
 }
