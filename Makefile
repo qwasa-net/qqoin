@@ -45,7 +45,8 @@ back.docker-container-run:
 
 
 webapp.build:
-	cd $(WEBAPP_DIR)/ && ENVFILE=$(realpath $(ENVFILE)) bash build.sh
+	WEBAPP_DIR=$(realpath $(WEBAPP_DIR)) ENVFILE=$(realpath $(ENVFILE)) \
+	bash webapp/build.sh
 
 
 deploy_demo: DEPLOY_HOST ?= $(QQOIN_DEPLOY_HOST)
@@ -75,7 +76,7 @@ deploy_demo: build
 	chown -v qqoin:nogroup /home/qqoin/qqoin.backend /home/qqoin/qqoin.env /home/qqoin/logs /home/qqoin/webapp /home/qqoin/db; \
 	systemctl daemon-reload; \
 	systemctl enable qqoin-backend; systemctl start qqoin-backend.service; \
-	systemctl restart nginx;\
+	systemctl reload nginx;\
 	'
 
 	curl -i https://qqoin.$(QQOIN_WEB_BASE_HOST)/ && echo "."

@@ -6,3 +6,5 @@ _venv/
 *.log
 *.bak
 
+qqoin.db
+back/src/qqoin.backend
