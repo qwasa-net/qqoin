@@ -51,6 +51,7 @@ webapp.build:
 
 deploy_demo: DEPLOY_HOST ?= $(QQOIN_DEPLOY_HOST)
 deploy_demo: TEMP_FILE := $(shell mktemp --dry-run)
+deploy_demo: QQOIN_WEB_BASE_HOST ?= qqoin.qq
 deploy_demo: build
 
 	ssh $(DEPLOY_HOST) ' \
@@ -83,7 +84,9 @@ deploy_demo: build
 	curl -i https://qqoin-api.$(QQOIN_WEB_BASE_HOST)/api/ping/ && echo "."
 
 
-deploy_tghook:
+register_tghook: QQOIN_WEB_BASE_HOST ?= qqoin.qq
+register_tghook: QQOIN_BOT_TOKEN ?= 00000000:AAbbCCddEEffGGhhIIjjkkLLmmnnOOppQQ
+register_tghook:
 	curl -s -X POST \
 	-F "url=https://qqoin-api.$(QQOIN_WEB_BASE_HOST)/api/tghook/" \
 	-F "secret_token=$(QQOIN_BOT_SECRET_TOKEN)" \
