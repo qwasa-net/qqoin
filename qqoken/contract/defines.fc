@@ -1,0 +1,21 @@
+;;
+const int workchain = 0;
+
+;; just some magic
+const int op::destroy = 0x1f04537a;
+
+const int op::excesses = 0xd53276db;
+
+const int op::revoke = 0x6f89f5e3;
+
+const int op::transfer = 0x5fcc3d14;
+
+const int op::ownership_assigned = 0x05138d91;
+
+const int op::take_excess = 0x5f3b5b3d;
+
+const int op::mint = 0xffaaaaaa;
+
+const int op::seal = 0xeeffffee;
+
+

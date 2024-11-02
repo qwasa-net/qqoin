@@ -1,0 +1,241 @@
+;; =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+;; QQoken Item Smart Contract
+;; =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+;;
+;; Based on Reference NFT implementation
+;; - https://github.com/ton-blockchain/token-contract/
+;; - https://github.com/ton-blockchain/TEPs/blob/master/text/0062-nft-standard.md
+;;
+;; Contract implements:
+;;  + Internal message operations:
+;;   - transfer
+;;   ✘ request_owner
+;;   ✘ prove_ownership
+;;   - destroy
+;;   - revoke
+;;  + GET methods:
+;;   - get_nft_data
+;;   - get_auth_address
+;;
+;; =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+
+#include "imports/stdlib.fc";
+#include "defines.fc";
+
+const int notify_fee  = 10000000;
+const int min_balance = 32100000;
+
+;;
+;;  Storage
+;;
+
+;; Storage format:
+;; - item id
+;; - collection_addr
+;; - current owner_addre
+;; - auth_addre
+;; - qqoin score
+
+global int storage::item_id;
+global slice storage::collection_addr;
+global slice storage::owner_addr;
+global slice storage::auth_addr;
+global cell storage::content;
+global int storage::magic;
+global int storage::inited;
+
+() load_data() impure {
+    slice ds = get_data().begin_parse();
+    storage::item_id = ds~load_uint(64);
+    storage::collection_addr = ds~load_msg_addr();
+    if (ds.slice_bits() == 0) {
+        storage::inited = 0;
+        storage::auth_addr = storage::collection_addr;
+        storage::owner_addr = storage::collection_addr;
+        storage::magic = 0;
+        storage::content = begin_cell().end_cell();
+    } else {
+        storage::inited = -1;
+        storage::auth_addr = ds~load_msg_addr();
+        storage::owner_addr = ds~load_msg_addr();
+        storage::magic = ds~load_uint(64);
+        storage::content = ds~load_ref();
+    }
+}
+
+() save_data() impure {
+    set_data(
+        begin_cell()
+        .store_uint(storage::item_id, 64)
+        .store_slice(storage::collection_addr)
+        .store_slice(storage::auth_addr)
+        .store_slice(storage::owner_addr)
+        .store_uint(storage::magic, 64)
+        .store_ref(storage::content)
+        .end_cell()
+    );
+}
+
+
+;;
+() cashback () impure {
+    raw_reserve(min_balance, 0);
+    cell excess_msg = begin_cell()
+        .store_uint(0x10, 6)
+        .store_slice(storage::auth_addr)
+        .store_coins(0)
+        .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+        .store_uint(op::excesses, 32)
+        .store_uint(storage::item_id, 64)
+        .end_cell();
+    send_raw_message(excess_msg, 128);
+}
+
+;;
+;;  Internal message handler
+;;
+
+() recv_internal(cell in_msg_full, slice in_msg_body) impure {
+
+    if (in_msg_body.slice_empty?()) { return(); }
+
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if (flags & 1) { return (); }
+
+    slice sender_address = cs~load_msg_addr();
+
+    load_data();
+
+    if (~ storage::inited) {
+        ;; read init data from collection's message
+        throw_unless(405, equal_slice_bits(storage::collection_addr, sender_address));
+        storage::auth_addr = in_msg_body~load_msg_addr();
+        storage::owner_addr = in_msg_body~load_msg_addr();
+        storage::magic = in_msg_body~load_uint(64);
+        storage::content = in_msg_body~load_ref();
+        save_data();
+        return ();
+    }
+
+    int op = in_msg_body.slice_empty?() ? 0 : in_msg_body~load_uint(32);
+    int query_id = in_msg_body.slice_empty?() ? 0 : in_msg_body~load_uint(64);
+
+    if (op == op::transfer) {
+
+        ;; TL-B schema of inbound message:
+        ;; transfer = #5fcc3d14
+        ;; query_id:uint64
+        ;; new_owner:MsgAddress
+        ;; [IGNORED] response_destination:MsgAddress
+        ;; custom_payload:(Maybe ^Cell)
+        ;; [IGNORED] forward_amount:(VarUInteger 16)
+        ;; [IGNORED] forward_payload:(Either Cell ^Cell) = InternalMsgBody;
+
+        throw_unless(401, equal_slice_bits(storage::auth_addr, sender_address));
+
+        storage::owner_addr = in_msg_body~load_msg_addr();
+        storage::content = in_msg_body~load_ref();
+        save_data();
+
+        var transfer_msg = begin_cell()
+            .store_uint(0x10, 6)
+            .store_slice(storage::owner_addr)
+            .store_coins(notify_fee)
+            .store_uint(0, 1 + 4 + 4 + 64 + 32 + 1 + 1)
+            .store_uint(op::ownership_assigned, 32)
+            .store_uint(query_id, 64)
+            .store_slice(storage::auth_addr)
+            .end_cell();
+        send_raw_message(transfer_msg, 1);
+
+        cashback();
+        return ();
+
+    }
+
+    if (op == op::seal) { ;; no more auth
+
+        throw_unless(401, equal_slice_bits(storage::auth_addr, sender_address));
+
+        storage::auth_addr = storage::collection_addr;
+        save_data();
+
+        return ();
+
+    }
+
+    if (op == op::destroy) { ;; no more magic
+
+        throw_unless(401, equal_slice_bits(storage::auth_addr, sender_address));
+
+        storage::owner_addr = null();
+        storage::auth_addr = null();
+        storage::magic = 0;
+        storage::content = begin_cell().end_cell();
+
+        cashback();
+        return ();
+    }
+
+    if (op == op::revoke) { ;; reset to defaults
+
+        throw_unless(401, equal_slice_bits(storage::auth_addr, sender_address));
+
+        storage::owner_addr = storage::collection_addr;
+        storage::magic = 0;
+        storage::content = begin_cell().end_cell();
+
+        save_data();
+
+        cashback();
+        return ();
+    }
+
+    if (op == op::take_excess) {
+
+        throw_unless(401, equal_slice_bits(storage::auth_addr, sender_address));
+
+        cashback();
+
+        return ();
+
+    }
+
+    throw(418);
+}
+
+;;
+;;  GET Methods
+;;
+
+(int, int, slice, slice, cell) get_nft_data() method_id {
+    load_data();
+    return (
+        storage::inited,
+        storage::item_id,
+        storage::collection_addr,
+        storage::owner_addr,
+        storage::content
+    );
+}
+
+slice get_auth_address() method_id {
+    load_data();
+    return storage::auth_addr;
+}
+
+slice get_owner_address() method_id {
+    load_data();
+    return storage::owner_addr;
+}
+
+cell get_content() method_id {
+    load_data();
+    return storage::content;
+}
+
+int get_magic() method_id {
+    load_data();
+    return storage::magic;
+}

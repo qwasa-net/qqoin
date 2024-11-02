@@ -1,0 +1,14 @@
+{
+  "name": "qqoken",
+  "version": "0.0.1",
+  "description": "qqoken build tools",
+  "devDependencies": {
+    "@swc/core": "^1.9.1",
+    "@ton-community/func-js": "^0.8.0",
+    "@ton/core": "^0.59.0",
+    "@ton/ton": "^15.1.0",
+    "@types/node": "^22.9.0",
+    "fs": "^0.0.1-security",
+    "qs": "^6.13.0"
+  }
+}
