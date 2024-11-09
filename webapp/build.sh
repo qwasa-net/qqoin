@@ -51,6 +51,8 @@ base64 -w0 "${SOURCE_DIR}/4iCv6KVjbNBYlgoCxCvjsGyN.woff2" > "${BUILD_DIR}/4iCv6K
 # src/qqoin.png → apple-touch-icon.png, favicon.ico (if newer)
 [ "${SOURCE_DIR}/qqoin.png" -nt "${TARGET_DIR}/apple-touch-icon.png" ] && \
 convert "${SOURCE_DIR}/qqoin.png" -resize 144x144 "${TARGET_DIR}/apple-touch-icon.png" && \
+convert "${SOURCE_DIR}/qqoin.png" -resize 256x256 "${TARGET_DIR}/qqoken.png" && \
+convert "${SOURCE_DIR}/qqoin.png" -resize 300x300 "${TARGET_DIR}/qqoken.webp" && \
 convert "${SOURCE_DIR}/qqoin.png" -resize 96x96 "${TARGET_DIR}/favicon.ico"
 
 # minify assets and compile index.html

@@ -8,3 +8,7 @@ _venv/
 
 qqoin.db
 back/src/qqoin.backend
+
+qqoken/compiled/*
+qqoken/package-lock.json
+qqoken/node_modules/
