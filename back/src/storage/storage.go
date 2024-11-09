@@ -43,6 +43,7 @@ func (s *QStorage) Migrate() {
 	defer s.lock.Unlock()
 	s.MigrateUsers()
 	s.MigrateTaps()
+	s.MigrateQqokens()
 }
 
 func (s *QStorage) Prepare() {
@@ -50,6 +51,7 @@ func (s *QStorage) Prepare() {
 	defer s.lock.Unlock()
 	s.PrepareTaps()
 	s.PrepareUsers()
+	s.PrepareQqokens()
 }
 
 func (s *QStorage) Close() error {
