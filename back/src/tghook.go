@@ -78,6 +78,67 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func (s *qTGHooker) validateSecretToken(req *http.Request) bool {
+	if s.Opts.botSecretToken != "" {
+		botSecretToken := req.Header.Get("X-Telegram-Bot-Api-Secret-Token")
+		if botSecretToken != s.Opts.botSecretToken {
+			return false
+		}
+	}
+	return true
+}
+
+var helloReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	{{if .Tap.Score}}
+	"text": "welcome back, {{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
+	{{ else }}
+	"text": "hello! I'm qQoin bot. Let's play a game!",
+	{{end}}
+	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
+}`
+
+func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
+	_, dbtap := s.getUserTapData(msg)
+	type tmplData struct {
+		Message   tgMessage
+		WebAppUrl string
+		Tap       storage.Tap
+	}
+	tmpl, _ := template.New("").Parse(helloReplyTemplate)
+	rsp.Header().Set("Content-Type", "application/json")
+	err := tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, Tap: *dbtap})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+}
+
+var qlaimReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, send your wallet address to get your personal qQoken — an item from the very limited NFT collection!!\n\n"
+}`
+
+// var qlaimReplyTemplate = `{
+// 	"method": "sendMessage",
+// 	"chat_id": "{{.Message.Chat.Id}}",
+// 	"text": "{{.Message.User.Username}}, qQoken qlaim time is over!!\n\nYou can still play qQoin! /start and /play now!!\n\n"
+// }`
+
+func (s *qTGHooker) tgHookQlaimHandler(rsp http.ResponseWriter, msg tgMessage) {
+	s.getUserTapData(msg) // create/update user
+	type tmplData struct {
+		Message tgMessage
+	}
+	tmpl, _ := template.New("").Parse(qlaimReplyTemplate)
+	rsp.Header().Set("Content-Type", "application/json")
+	err := tmpl.Execute(rsp, tmplData{Message: msg})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+}
+
 func looksLikeTONAddress(line string) bool {
 	// User-friendly address --
 	// 36 bytes, encoded with base64 or base64url --
@@ -100,75 +161,18 @@ func looksLikeTONAddress(line string) bool {
 	return false
 }
 
-func (s *qTGHooker) validateSecretToken(req *http.Request) bool {
-	if s.Opts.botSecretToken != "" {
-		botSecretToken := req.Header.Get("X-Telegram-Bot-Api-Secret-Token")
-		if botSecretToken != s.Opts.botSecretToken {
-			return false
-		}
-	}
-	return true
-}
-
-var helloReplyTemplate = `{
-	"method": "sendMessage",
-	"chat_id": "{{.Message.Chat.Id}}",
-	{{if .Tap.Score}}
-	"text": "welcome back, {{.Message.User.Username}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
-	{{ else }}
-	"text": "hello! I'm qQoin bot. Let's play a game!",
-	{{end}}
-	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
-}`
-
-func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
-	_, dbtap := s.getUserTap(msg)
-	type tmplData struct {
-		Message   tgMessage
-		WebAppUrl string
-		Tap       storage.Tap
-	}
-	tmpl, _ := template.New("").Parse(helloReplyTemplate)
-	rsp.Header().Set("Content-Type", "application/json")
-	err := tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, Tap: *dbtap})
-	if err != nil {
-		log.Printf("error executing template: %v\n", err)
-	}
-}
-
-var qlaimReplyTemplate = `{
-	"method": "sendMessage",
-	"chat_id": "{{.Message.Chat.Id}}",
-	"text": "{{.Message.User.Username}}, send your wallet address to get your personal QQOKEN -- an item from the very limited NFT collection!!\n\n"
-}`
-
-func (s *qTGHooker) tgHookQlaimHandler(rsp http.ResponseWriter, msg tgMessage) {
-	_, dbtap := s.getUserTap(msg)
-	type tmplData struct {
-		Message   tgMessage
-		WebAppUrl string
-		Tap       storage.Tap
-	}
-	tmpl, _ := template.New("").Parse(qlaimReplyTemplate)
-	rsp.Header().Set("Content-Type", "application/json")
-	err := tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, Tap: *dbtap})
-	if err != nil {
-		log.Printf("error executing template: %v\n", err)
-	}
-}
-
 var qlaimWalletSetReplyTemplate = `{
 	"method": "sendMessage",
 	"chat_id": "{{.Message.Chat.Id}}",
-	"text": "{{.Message.User.Username}}, your wallet address is set to: {{.Message.Text}}\n\nYou will be notified when your QQOKEN is ready!\n\n",
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, your wallet address is set to: {{.Message.Text}}\n\nYou will be notified when your personal qQoken is ready!\n\n",
     "reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
 }`
 
 var qlaimQqokenReadyReplyTemplate = `{
 	"method": "sendMessage",
 	"chat_id": "{{.Message.Chat.Id}}",
-	"text": "{{.Message.User.Username}}, QQoken {{.qqoken.Qqoken_addr}} is already created for you!\n\ncheck: https://testnet.tonviewer.com/{{.qqoken.Qqoken_addr}}\n\n"
-	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"tonviewer\", \"web_app\": {\"url\": \"https://testnet.tonviewer.com/{{.qqoken.Qqoken_addr}}\"}}]]}"
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, qQoken {{.qqoken.Qqoken_addr}} is already created for you!\n\ncheck: https://tonviewer.com/{{.qqoken.Qqoken_addr}}\n\n"
+	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"tonviewer\", \"web_app\": {\"url\": \"https://tonviewer.com/{{.qqoken.Qqoken_addr}}\"}}]]}"
 }`
 
 func (s *qTGHooker) tgHookWalletAddressHandler(rsp http.ResponseWriter, msg tgMessage) {
@@ -208,7 +212,7 @@ func (s *qTGHooker) tgHookDefaultHandler(rsp http.ResponseWriter, msg tgMessage)
 	s.tgHookStartHandler(rsp, msg)
 }
 
-func (s *qTGHooker) getUserTap(msg tgMessage) (*storage.User, *storage.Tap) {
+func (s *qTGHooker) getUserTapData(msg tgMessage) (*storage.User, *storage.Tap) {
 	user := storage.User{
 		UID:      msg.User.Id,
 		Username: msg.User.Username,
