@@ -94,7 +94,7 @@ h2 {
     height: 66vw;
     background-color: wheat;
     border-radius: 15%;
-    border: 0.2rem solid orange;
+    border: 0.25rem solid orange;
     box-shadow: inset 0 0 2vw 2vw darkorange;
     font-size: 25vw;
     font-weight: bold;
@@ -104,7 +104,8 @@ h2 {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    transition: background-color 0.05s linear 0.1s;
+    transition: background-color 0.05s linear 0.1s, rotate 0.1s linear 0;
+    rotate: 0deg;
 }
 
 #clicker:hover {}
@@ -124,7 +125,8 @@ h2 {
     box-shadow: inset 0 0 3vw 3vw darkgreen;
     border-color: green;
     background-color: lime;
-    transition: background-color 0s linear 0s;
+    rotate: 5deg;
+    transition: background-color 0s linear, rotate 0.1s ease-in;
 }
 
 #clicker.danger {
@@ -132,7 +134,8 @@ h2 {
     border-color: salmon;
     background-color: orangered;
     color: gold;
-    transition: background-color 0s linear 0s;
+    rotate: -8deg;
+    transition: background-color 0s linear, rotate 0.1s ease-in;
 }
 
 footer {

@@ -32,7 +32,7 @@ const qqoinapp = {
         this.clicker_el = document.getElementById('clicker');
         this.clicker_el.addEventListener("mousedown", this.handle_clicker_clicked);
         try { this.tg.ready(); this.tg.expand(); } catch (e) { }
-        try { this.user_id = this.tg.initDataUnsafe.user.id } catch (e) { this.user_id = 0; }
+        try { this.user_id = this.tg.initDataUnsafe.user.id; } catch (e) { this.user_id = 0; }
         this.get_data_init((data) => { this.init_with_data(data); }, (err) => { this.init_with_data(); });
     },
 
@@ -42,7 +42,8 @@ const qqoinapp = {
             this.score_total = data.score || 0;
             this.hello = data.hello || Math.random().toString(36).substring(2, 15);
         } else {
-            this.score_total = 0;
+            this.score_total = -1;
+            this.state = -1;
         }
         this.update_clicker_label();
         this.update_score_label();
@@ -59,7 +60,9 @@ const qqoinapp = {
     recover: function () {
         this.clicker_el.classList.remove("soon");
         this.clicker_el.classList.remove("danger");
-        setTimeout((ev) => { this.start() }, 500);
+        this.state = 3;
+        this.update_clicker_label();
+        setTimeout((ev) => { this.start(); }, 500);
     },
 
     energize: function () {
@@ -71,7 +74,7 @@ const qqoinapp = {
         this.clicker_el.classList.add("success");
         this.update_clicker_label();
         this.update_score_label(`+${energy}`);
-        setTimeout((ev) => { this.start() }, 500);
+        setTimeout((ev) => { this.start(); }, 500);
     },
 
     deenergize: function () {
@@ -100,8 +103,12 @@ const qqoinapp = {
         let energy = Math.floor(Number(this.clicker_energy) || 0);
         if (this.state === 0) {
             this.clicker_el.innerText = "qo!";
+        } else if (this.state === -1) {
+            this.clicker_el.innerText = "error!!";
         } else if (this.state === 2) {
             this.clicker_el.innerText = String(-energy);
+        } else if (this.state === 3) {
+            this.clicker_el.innerText = "··";
         } else if (this.clicker_energy <= 0) {
             this.clicker_el.innerText = "";
         } else {
