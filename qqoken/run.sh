@@ -23,11 +23,23 @@ AUTH_ADDR=${AUTH_ADDR:=}
 OWNER_ADDR=${OWNER_ADDR:=}
 QQOKEN_VALUE=${QQOKEN_VALUE:=100}
 QQOLLECTION_ID=${QQOLLECTION_ID:=1000}
+QQOLLECTION_SIZE=${QQOLLECTION_SIZE:=9}
 QQOKEN_ID=${QQOKEN_ID:=99}
+NAMENET=${NAMENET:=test}
 
 nodejs deploy-qq.js \
     --auth "${AUTH_ADDR}" \
-    --owner "${OWNER_ADDR}" \
-    --value "${QQOKEN_VALUE}" \
     --qqolection-id "${QQOLLECTION_ID}" \
-    --qqoken-id "${QQOKEN_ID}"
+    --qqolection-size "${QQOLLECTION_SIZE}" \
+    "--${NAMENET}net"
+
+for i in $(seq 1 $QQOLLECTION_SIZE);
+do
+    qqoked_id=$(( "$RANDOM$RANDOM$RANDOM" % 1000000 ))
+    nodejs deploy-qq.js \
+        --auth "${AUTH_ADDR}" \
+        --qqolection-id "${QQOLLECTION_ID}" \
+        --qqolection-size "${QQOLLECTION_SIZE}" \
+        --qqoken-id "${qqoked_id}" \
+        "--${NAMENET}net"
+done

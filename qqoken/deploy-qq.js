@@ -8,26 +8,26 @@ const qs = require("querystring");
 const QQOKEN_CONTRACT_FILE = "compiled/qqoken.boc64";
 const QQOLLECTION_CONTRACT_FILE = "compiled/qqollection.boc64";
 //
-const DEPLOY_FEE = toNano(0.11);
-const TRANSFER_FEE = toNano(0.06);
-const MINT_FEE = toNano(0.06);
+const DEPLOY_FEE = toNano(0.21);
+const TRANSFER_FEE = toNano(0.7);
+const MINT_FEE = toNano(0.07);
 
 //
 const WORKCHAIN = 0;
 let TEST_NET = true;
 
-let QQOKEN_BASE_URI = "https://qqoken.qwasa.net/~";
+let QQOKEN_BASE_URI = "https://qqoin.qwasa.net/qqoken~";
 
 let QQOLLECTION_ON_DATA = {
-    "name": "qqollection",
-    "description": "·· qqoin qqoken qqollection ··",
-    "image": "https://qqoken.qwasa.net/qqoken.webp"
+    "name": "qQollection",
+    "description": "·✦· qQoin qQoken qQollection 🗲🗲 limited edition ·✦·",
+    "image": "https://qqoin.qwasa.net/qqollection.webp"
 };
 
 let QQOKEN_ON_DATA = {
     "name": "qqoken",
     "description": "qqoin qqoken",
-    "image": "https://qqoken.qwasa.net/qqoken.webp"
+    "image": "https://qqoin.qwasa.net/qqoken.webp"
 };
 
 //
@@ -101,7 +101,7 @@ function build_code_cell(boc_file) {
 }
 
 //
-function deploy_qqollection(qqollection_id, auth_addr, content) {
+function deploy_qqollection(qqollection_id, qqolection_size, auth_addr, content) {
 
     console.log("@deploy_qqollection", qqollection_id, auth_addr);
 
@@ -112,6 +112,7 @@ function deploy_qqollection(qqollection_id, auth_addr, content) {
     const data_cell = beginCell()
         .storeAddress(auth_addr)
         .storeUint(qqollection_id, 64)
+        .storeUint(qqolection_size, 64)
         .storeUint(0, 64)
         .storeRef(content)
         .storeRef(build_code_cell(QQOKEN_CONTRACT_FILE))
@@ -126,7 +127,7 @@ function deploy_qqollection(qqollection_id, auth_addr, content) {
     const address = contractAddress(WORKCHAIN, state_init);
     console.log("qqollection addr:", address);
 
-    print_transfer_address("deploy qqollection", address, DEPLOY_FEE, state_init_cell, null);
+    print_transfer_address("deploy qQollection", address, DEPLOY_FEE, state_init_cell, null);
 
     return address;
 
@@ -149,7 +150,7 @@ function deploy_qqoken_from_qqollection(qqollection_addr, qqoken_id) {
         .storeCoins(MINT_FEE.toString(10))
         .endCell();
 
-    print_transfer_address("mint qqoken", qqollection_addr, MINT_FEE, null, data_cell);
+    print_transfer_address("mint qQoken", qqollection_addr, MINT_FEE, null, data_cell);
 
     return qqoken_addr;
 
@@ -192,8 +193,8 @@ function transfer_qqoken(qqoken_addr, qqoken_id, owner_addr, content) {
 function build_qqoken_content(qqoken_id, value) {
     let meta = JSON.parse(JSON.stringify(QQOKEN_ON_DATA));
     if (value) {
-        meta["description"] = `·· qqoken #${qqoken_id} 🗲 value: ${value} qqoins ··`;
-        meta["name"] = `qqoken #${qqoken_id}`;
+        meta["description"] = `·✦· qQoken #${qqoken_id} 🗲✹🗲 value: ${value} qQoins ·✦·`;
+        meta["name"] = `qQoken #${qqoken_id}`;
     }
     meta["uri"] = QQOKEN_BASE_URI + qqoken_id;
     console.log("meta:", meta);
@@ -245,6 +246,7 @@ function parse_cmd_arguments() {
     let owner_addr = null;
     let value = 0;
     let qqolection_id = 0;
+    let qqolection_size = 9;
     let qqoken_id = 0;
     let testnet = TEST_NET;
 
@@ -264,8 +266,14 @@ function parse_cmd_arguments() {
         if (arg === '--qqoken-id' && args[index + 1]) {
             qqoken_id = Number(args[index + 1]);
         }
+        if (arg === '--qqolection-size' && args[index + 1]) {
+            qqolection_size = Number(args[index + 1]);
+        }
         if (arg === '--mainnet') {
             testnet = false;
+        }
+        if (arg === '--testnet') {
+            testnet = true;
         }
 
     });
@@ -275,6 +283,7 @@ function parse_cmd_arguments() {
         owner_addr: owner_addr,
         value: value,
         qqolection_id: qqolection_id,
+        qqolection_size: qqolection_size,
         qqoken_id: qqoken_id,
         testnet: testnet
     };
@@ -286,17 +295,23 @@ function do_the_do(params) {
     console.log("\n[1] deploy qqollection");
     let auth_addr = Address.parse(params.auth_addr);
     let qqollection_id = params.qqolection_id;
-    let qqollection_content = build_onchain_meta(QQOLLECTION_ON_DATA);
+    let qqollection_meta = QQOLLECTION_ON_DATA;
+    console.log("qqollection_meta:", qqollection_meta);
+    let qqollection_content = build_onchain_meta(qqollection_meta);
+    let qqollection_size = params.qqolection_size;
     let qqollection = deploy_qqollection(
         qqollection_id,
+        qqollection_size,
         auth_addr,
         qqollection_content
     );
 
     // [2] mint empty qqoken
-    console.log("\n[2] mint empty qqoken");
-    let qqoken_id = params.qqoken_id;
-    qqoken_addr = deploy_qqoken_from_qqollection(qqollection, qqoken_id);
+    if (params.qqoken_id) {
+        console.log("\n[2] mint empty qqoken");
+        let qqoken_id = params.qqoken_id;
+        qqoken_addr = deploy_qqoken_from_qqollection(qqollection, qqoken_id);
+    }
 
     // [3] transfer qqoken
     if (params.value && params.owner_addr) {
