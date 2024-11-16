@@ -27,7 +27,7 @@ server {
     }
 
     # rewrite /~771 to /api/qqoken/771
-    rewrite ^/~([0-9]+)$ /api/qqoken/$1 last;
+    rewrite ^/qqoken~([0-9]+)$ /api/qqoken/$1 last;
 
     location /api/ {
         limit_req zone=qqoin burst=10 nodelay;

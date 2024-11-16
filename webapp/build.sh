@@ -49,11 +49,14 @@ set -x
 base64 -w0 "${SOURCE_DIR}/4iCv6KVjbNBYlgoCxCvjsGyN.woff2" > "${BUILD_DIR}/4iCv6KVjbNBYlgoCxCvjsGyN.woff2.base64"
 
 # src/qqoin.png → apple-touch-icon.png, favicon.ico (if newer)
-[ "${SOURCE_DIR}/qqoin.png" -nt "${TARGET_DIR}/apple-touch-icon.png" ] && \
-convert "${SOURCE_DIR}/qqoin.png" -resize 144x144 "${TARGET_DIR}/apple-touch-icon.png" && \
-convert "${SOURCE_DIR}/qqoin.png" -resize 256x256 "${TARGET_DIR}/qqoken.png" && \
-convert "${SOURCE_DIR}/qqoin.png" -resize 300x300 "${TARGET_DIR}/qqoken.webp" && \
-convert "${SOURCE_DIR}/qqoin.png" -resize 96x96 "${TARGET_DIR}/favicon.ico"
+if [ "${SOURCE_DIR}/qqoin.png" -nt "${TARGET_DIR}/apple-touch-icon.png" ]
+then
+    convert "${SOURCE_DIR}/qqoin.png" -resize 96x96 "${TARGET_DIR}/favicon.ico"
+    convert "${SOURCE_DIR}/qqoin.png" -resize 144x144 "${TARGET_DIR}/apple-touch-icon.png"
+    convert "${SOURCE_DIR}/qqoin.png" -grayscale Rec709Luminance -resize 400x400 "${TARGET_DIR}/qqollection.webp"
+    convert "${SOURCE_DIR}/qqoin.png" -resize 400x400 "${TARGET_DIR}/qqoken.webp"
+fi
+
 
 # minify assets and compile index.html
 "${JSMIN_BIN}" "${SOURCE_DIR}/qqoin.js" >"${BUILD_DIR}/qqoin.min.js"
