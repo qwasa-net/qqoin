@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"text/template"
 
 	"qqoin.backend/storage"
@@ -62,12 +64,16 @@ func (s *qTGHooker) tgHookHandler(rsp http.ResponseWriter, req *http.Request) {
 	log.Printf("TGHook message: %s\n", js)
 
 	// select action based on message
-	switch payload.Message.Text {
-	case "/start":
+	if looksLikeTONAddress(payload.Message.Text) {
+		log.Printf("looks like TON address: %s\n", payload.Message.Text)
+		s.tgHookWalletAddressHandler(rsp, payload.Message)
+	} else if payload.Message.Text == "/start" {
 		s.tgHookStartHandler(rsp, payload.Message)
-	case "/admin":
+	} else if payload.Message.Text == "/qlaim" {
+		s.tgHookQlaimHandler(rsp, payload.Message)
+	} else if payload.Message.Text == "/admin" {
 		s.tgHookAdminHandler(rsp, payload.Message)
-	default:
+	} else {
 		s.tgHookDefaultHandler(rsp, payload.Message)
 	}
 }
@@ -86,7 +92,7 @@ var helloReplyTemplate = `{
 	"method": "sendMessage",
 	"chat_id": "{{.Message.Chat.Id}}",
 	{{if .Tap.Score}}
-	"text": "welcome back, {{.Message.User.Username}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
+	"text": "welcome back, {{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}!\nyou have {{.Tap.Score}} points after {{.Tap.Count}} rounds.\nlet's play more!",
 	{{ else }}
 	"text": "hello! I'm qQoin bot. Let's play a game!",
 	{{end}}
@@ -94,7 +100,7 @@ var helloReplyTemplate = `{
 }`
 
 func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
-	_, dbtap := s.getUserTap(msg)
+	_, dbtap := s.getUserTapData(msg)
 	type tmplData struct {
 		Message   tgMessage
 		WebAppUrl string
@@ -108,11 +114,138 @@ func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
 	}
 }
 
+// var qlaimReplyTemplate = `{
+// 	"method": "sendMessage",
+// 	"chat_id": "{{.Message.Chat.Id}}",
+// 	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, send your wallet address to get your personal qQoken — an item from the very limited NFT collection!!\n\n"
+// }`
+
+var qlaimReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{.Message.User.Username}}, qQoken qlaim time is over!!\n\nYou can still play qQoin! /start and /play now!!\n\n"
+}`
+
+func (s *qTGHooker) tgHookQlaimHandler(rsp http.ResponseWriter, msg tgMessage) {
+	s.getUserTapData(msg) // create/update user
+	var qqoken *storage.QQoken
+	qqoken, _ = s.storage.GetQqoken(msg.User.Id)
+	if qqoken != nil && qqoken.Qqoken_id != "" {
+		log.Printf("qqoken already set: %v\n", qqoken)
+		s.tgHookQqokenReadyHandler(rsp, msg, qqoken)
+		return
+	}
+	type tmplData struct {
+		Message tgMessage
+	}
+	tmpl, _ := template.New("").Parse(qlaimReplyTemplate)
+	rsp.Header().Set("Content-Type", "application/json")
+	err := tmpl.Execute(rsp, tmplData{Message: msg})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+}
+
+func looksLikeTONAddress(line string) bool {
+	// User-friendly address --
+	// 36 bytes, encoded with base64 or base64url --
+	// 48 non-spaced characters.
+
+	line = strings.TrimSpace(line)
+	if len(line) == 48 {
+		var bline []byte
+		var err error
+		bline, err = base64.URLEncoding.DecodeString(line)
+		if err != nil {
+			bline, err = base64.StdEncoding.DecodeString(line)
+		}
+		if err == nil {
+			if len(bline) == 32 || len(bline) == 36 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var qlaimWalletSetReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, your wallet address is set to: {{.Message.Text}}\n\nYou will be notified when your personal qQoken is ready!\n\n",
+    "reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
+}`
+
+func (s *qTGHooker) tgHookWalletAddressHandler(rsp http.ResponseWriter, msg tgMessage) {
+	var err error
+	var qqoken *storage.QQoken
+	var tmpl *template.Template
+
+	qqoken, _ = s.storage.GetQqoken(msg.User.Id)
+	if qqoken != nil && qqoken.Qqoken_id != "" {
+		log.Printf("qqoken already set: %v\n", qqoken)
+		s.tgHookQqokenReadyHandler(rsp, msg, qqoken)
+		return
+	}
+
+	wallet_addr := strings.TrimSpace(msg.Text)
+	qqoken = &storage.QQoken{
+		UID:         msg.User.Id,
+		Wallet_addr: wallet_addr,
+	}
+	err = s.storage.CreateUpdateQqoken(qqoken)
+	if err != nil {
+		log.Printf("error upserting qqoken: %v\n", err)
+	}
+
+	tmpl, _ = template.New("").Parse(qlaimWalletSetReplyTemplate)
+	type tmplData struct {
+		Message   tgMessage
+		QQoken    storage.QQoken
+		WebAppUrl string
+	}
+	rsp.Header().Set("Content-Type", "application/json")
+	err = tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, QQoken: *qqoken})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+
+}
+
+var qlaimQqokenReadyReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, qQoken №{{.QQoken.Qqoken_id}} '{{.QQoken.Qqoken_addr}}' is already created for you!\n\ncheck here: https://tonviewer.com/{{.QQoken.Qqoken_addr}}?section=nft\n\n",
+	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"tonviewer\", \"web_app\": {\"url\": \"https://tonviewer.com/{{.QQoken.Qqoken_addr}}\"}}]]}"
+}`
+
+func (s *qTGHooker) tgHookQqokenReadyHandler(rsp http.ResponseWriter, msg tgMessage, qqoken *storage.QQoken) {
+	var err error
+	var tmpl *template.Template
+	if qqoken == nil || qqoken.Qqoken_id == "" {
+		log.Printf("qqoken not set: %v\n", qqoken)
+		return
+	}
+	log.Printf("qqoken already set: %v\n", qqoken)
+	tmpl, _ = template.New("").Parse(qlaimQqokenReadyReplyTemplate)
+	type tmplData struct {
+		Message   tgMessage
+		QQoken    storage.QQoken
+		WebAppUrl string
+	}
+
+	rsp.Header().Set("Content-Type", "application/json")
+	err = tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, QQoken: *qqoken})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+
+}
+
 func (s *qTGHooker) tgHookDefaultHandler(rsp http.ResponseWriter, msg tgMessage) {
 	s.tgHookStartHandler(rsp, msg)
 }
 
-func (s *qTGHooker) getUserTap(msg tgMessage) (*storage.User, *storage.Tap) {
+func (s *qTGHooker) getUserTapData(msg tgMessage) (*storage.User, *storage.Tap) {
 	user := storage.User{
 		UID:      msg.User.Id,
 		Username: msg.User.Username,
@@ -136,6 +269,7 @@ func (s *qTGHooker) getUserTap(msg tgMessage) (*storage.User, *storage.Tap) {
 
 var usersListTemplate = `{{range .Users}}- {{.UID}} | {{.Username}} ({{.Name}})\n{{end}}`
 var tapsListTemplate = `{{range .Taps}}- {{.UID}} | {{.Score}}/{{.Count}}\n{{end}}`
+var qqokensListTemplate = `{{range .Qqokens}}- {{.UID}} | {{.Wallet_addr}}/{{.Qqoken_addr}}\n{{end}}`
 var adminReplyTemplate = `{
 	"method": "sendMessage",
 	"chat_id": "{{.Message.Chat.Id}}",
@@ -143,7 +277,9 @@ var adminReplyTemplate = `{
 	`\n== recent users ==\n` +
 	usersListTemplate +
 	`\n== top taps ==\n` +
-	tapsListTemplate + `"
+	tapsListTemplate +
+	`\n== qqokens ==\n` +
+	qqokensListTemplate + `"
 }`
 
 func (s *qTGHooker) tgHookAdminHandler(rsp http.ResponseWriter, msg tgMessage) {
@@ -155,14 +291,16 @@ func (s *qTGHooker) tgHookAdminHandler(rsp http.ResponseWriter, msg tgMessage) {
 	}
 	users, _ := s.storage.GetAllUsers(100)
 	taps, _ := s.storage.GetAllTaps(100)
+	qqokens, _ := s.storage.GetAllQqokens(100)
 	type tmplData struct {
 		Message tgMessage
 		Users   []storage.User
 		Taps    []storage.Tap
+		Qqokens []storage.QQoken
 	}
 	tmpl, _ := template.New("").Parse(adminReplyTemplate)
 	rsp.Header().Set("Content-Type", "application/json")
-	err := tmpl.Execute(rsp, tmplData{Message: msg, Users: users, Taps: taps})
+	err := tmpl.Execute(rsp, tmplData{Message: msg, Users: users, Taps: taps, Qqokens: qqokens})
 	if err != nil {
 		log.Printf("error executing template: %v\n", err)
 	}

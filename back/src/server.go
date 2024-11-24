@@ -9,7 +9,7 @@ import (
 	"syscall"
 )
 
-func runServer(opts *QQOptions, hooker *qTGHooker, backer *qWebAppBack) error {
+func runServer(opts *QQOptions, hooker *qTGHooker, backer *qWebAppBack, qqoken *qQoken) error {
 
 	mux := http.NewServeMux()
 
@@ -17,6 +17,7 @@ func runServer(opts *QQOptions, hooker *qTGHooker, backer *qWebAppBack) error {
 	mux.HandleFunc("POST /tghook/", hooker.tgHookHandler)
 	mux.HandleFunc("GET /taps/", backer.tapsHandler)
 	mux.HandleFunc("POST /taps/", backer.tapsHandler)
+	mux.HandleFunc("GET /qqoken/", qqoken.qQokenHandler)
 
 	handler := Logging(mux, opts)
 

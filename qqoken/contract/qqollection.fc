@@ -1,0 +1,166 @@
+;;  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+;;  QQollection NFT Collection smart contract
+;;  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+;;
+;;  https://github.com/ton-blockchain/token-contract/blob/main/nft/nft-collection.fc
+;;  https://github.com/ton-blockchain/TEPs/blob/master/text/0062-nft-standard.md
+;;
+;;  Contract implements:
+;;    + Internal message operations:
+;;      - mint
+;;    + GET methods
+;;      - get_collection_data
+;;      - get_nft_address_by_index
+;;      - get_nft_content
+;;
+;; =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+#include "imports/stdlib.fc";
+#include "defines.fc";
+
+;; Storage format:
+;;  MsgAddress -- auth_addr
+;;  uint64 -- id
+;;  uint64 -- counter
+;;  cell -- content
+;;  cell -- nft_item_code
+
+global slice storage::auth_addr;
+global int storage::magic;
+global int storage::limit;
+global int storage::counter;
+global cell storage::content;
+global cell storage::nft_item_code;
+
+() load_data() impure {
+  slice ds = get_data().begin_parse();
+  storage::auth_addr = ds~load_msg_addr();
+  storage::magic = ds~load_uint(64);
+  storage::limit = ds~load_uint(64);
+  storage::counter = ds~load_uint(64);
+  storage::content = ds~load_ref();
+  storage::nft_item_code = ds~load_ref();
+}
+
+() save_data() impure {
+  set_data(
+    begin_cell()
+    .store_slice(storage::auth_addr)
+    .store_uint(storage::magic, 64)
+    .store_uint(storage::limit, 64)
+    .store_uint(storage::counter, 64)
+    .store_ref(storage::content)
+    .store_ref(storage::nft_item_code)
+    .end_cell()
+  );
+}
+
+
+;;
+cell calculate_nft_item_state_init(int item_id) impure {
+
+  cell data = begin_cell()
+    .store_uint(item_id, 64)
+    .store_slice(my_address())
+    .end_cell();
+
+  return begin_cell()
+    .store_uint(0, 2)
+    .store_dict(storage::nft_item_code)
+    .store_dict(data)
+    .store_uint(0, 1)
+    .end_cell();
+
+}
+
+;;
+slice calculate_nft_item_address(cell state_init) {
+
+  return begin_cell()
+    .store_uint(4, 3)
+    .store_int(workchain, 8)
+    .store_uint(cell_hash(state_init), 256)
+    .end_cell()
+    .begin_parse();
+
+}
+
+;;
+() deploy_nft_item(int item_id, int amount) impure {
+
+  cell state_init = calculate_nft_item_state_init(item_id);
+  slice nft_address = calculate_nft_item_address(state_init);
+
+  cell payload = begin_cell()
+    .store_slice(storage::auth_addr) ;; auth address
+    .store_slice(storage::auth_addr)  ;; auth is the owner
+    .store_uint(0, 64) ;; no magic
+    .store_ref(storage::content) ;; default content
+    .end_cell();
+
+  var msg = begin_cell()
+    .store_uint(0x18, 6)
+    .store_slice(nft_address)
+    .store_coins(amount)
+    .store_uint(4 + 2 + 1, 1 + 4 + 4 + 64 + 32 + 1 + 1 + 1)
+    .store_ref(state_init)
+    .store_ref(payload)
+    .end_cell();
+
+  send_raw_message(msg, 1);
+
+}
+
+;;
+;;  Internal message handler
+;;
+
+() recv_internal(cell in_msg_full, slice in_msg_body)  impure {
+
+  slice cs = in_msg_full.begin_parse();
+  int flags = cs~load_uint(4);
+  if (flags & 1) { return (); }
+
+  slice sender_address = cs~load_msg_addr();
+
+  load_data();
+  throw_unless(403, equal_slice_bits(sender_address, storage::auth_addr));
+
+  int op = in_msg_body.slice_empty?() ? 0 : in_msg_body~load_uint(32);
+  int query_id = in_msg_body.slice_empty?() ? 0 : in_msg_body~load_uint(64);
+
+  if (op == op::mint) {
+    throw_unless(401, equal_slice_bits(sender_address, storage::auth_addr));
+    throw_if(429, storage::counter >= storage::limit);
+    int item_id = in_msg_body~load_uint(64);
+    deploy_nft_item(item_id, in_msg_body~load_coins());
+    storage::counter += 1;
+    save_data();
+    return ();
+  }
+
+}
+
+;;
+;; Get methods
+;;
+
+(int, cell, slice) get_collection_data() method_id {
+  load_data();
+  return (storage::counter, storage::content, storage::auth_addr);
+}
+
+slice get_nft_address_by_index(int index) method_id {
+  load_data();
+  cell state_init = calculate_nft_item_state_init(index);
+  return calculate_nft_item_address(state_init);
+}
+
+cell get_nft_content(int index, cell individual_nft_content) method_id {
+  load_data();
+  return individual_nft_content;
+}
+
+(int, int, int) get_magic() method_id {
+  load_data();
+  return (storage::magic, storage::limit, storage::counter);
+}

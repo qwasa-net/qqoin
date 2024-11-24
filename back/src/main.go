@@ -122,8 +122,14 @@ func main() {
 		ledger:  ldgr,
 	}
 
+	// create webapp handler
+	qqoken := qQoken{
+		Opts:    &opts,
+		storage: strg,
+	}
+
 	// run http server
-	err := runServer(&opts, &hooker, &backer)
+	err := runServer(&opts, &hooker, &backer, &qqoken)
 	if err != nil {
 		log.Printf("server run failed: %s\n", err.Error())
 	}
