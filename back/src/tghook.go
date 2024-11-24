@@ -114,20 +114,27 @@ func (s *qTGHooker) tgHookStartHandler(rsp http.ResponseWriter, msg tgMessage) {
 	}
 }
 
-var qlaimReplyTemplate = `{
-	"method": "sendMessage",
-	"chat_id": "{{.Message.Chat.Id}}",
-	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, send your wallet address to get your personal qQoken — an item from the very limited NFT collection!!\n\n"
-}`
-
 // var qlaimReplyTemplate = `{
 // 	"method": "sendMessage",
 // 	"chat_id": "{{.Message.Chat.Id}}",
-// 	"text": "{{.Message.User.Username}}, qQoken qlaim time is over!!\n\nYou can still play qQoin! /start and /play now!!\n\n"
+// 	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, send your wallet address to get your personal qQoken — an item from the very limited NFT collection!!\n\n"
 // }`
+
+var qlaimReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{.Message.User.Username}}, qQoken qlaim time is over!!\n\nYou can still play qQoin! /start and /play now!!\n\n"
+}`
 
 func (s *qTGHooker) tgHookQlaimHandler(rsp http.ResponseWriter, msg tgMessage) {
 	s.getUserTapData(msg) // create/update user
+	var qqoken *storage.QQoken
+	qqoken, _ = s.storage.GetQqoken(msg.User.Id)
+	if qqoken != nil && qqoken.Qqoken_id != "" {
+		log.Printf("qqoken already set: %v\n", qqoken)
+		s.tgHookQqokenReadyHandler(rsp, msg, qqoken)
+		return
+	}
 	type tmplData struct {
 		Message tgMessage
 	}
@@ -168,38 +175,64 @@ var qlaimWalletSetReplyTemplate = `{
     "reply_markup": "{\"inline_keyboard\": [[{\"text\": \"play qQoin\", \"web_app\": {\"url\": \"{{.WebAppUrl}}\"}}]]}"
 }`
 
-var qlaimQqokenReadyReplyTemplate = `{
-	"method": "sendMessage",
-	"chat_id": "{{.Message.Chat.Id}}",
-	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, qQoken {{.qqoken.Qqoken_addr}} is already created for you!\n\ncheck: https://tonviewer.com/{{.qqoken.Qqoken_addr}}\n\n"
-	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"tonviewer\", \"web_app\": {\"url\": \"https://tonviewer.com/{{.qqoken.Qqoken_addr}}\"}}]]}"
-}`
-
 func (s *qTGHooker) tgHookWalletAddressHandler(rsp http.ResponseWriter, msg tgMessage) {
 	var err error
 	var qqoken *storage.QQoken
 	var tmpl *template.Template
-	wallet_addr := strings.TrimSpace(msg.Text)
+
 	qqoken, _ = s.storage.GetQqoken(msg.User.Id)
 	if qqoken != nil && qqoken.Qqoken_id != "" {
 		log.Printf("qqoken already set: %v\n", qqoken)
-		tmpl, _ = template.New("").Parse(qlaimQqokenReadyReplyTemplate)
-	} else {
-		qqoken = &storage.QQoken{
-			UID:         msg.User.Id,
-			Wallet_addr: wallet_addr,
-		}
-		err = s.storage.CreateUpdateQqoken(qqoken)
-		if err != nil {
-			log.Printf("error upserting qqoken: %v\n", err)
-		}
-		tmpl, _ = template.New("").Parse(qlaimWalletSetReplyTemplate)
+		s.tgHookQqokenReadyHandler(rsp, msg, qqoken)
+		return
 	}
+
+	wallet_addr := strings.TrimSpace(msg.Text)
+	qqoken = &storage.QQoken{
+		UID:         msg.User.Id,
+		Wallet_addr: wallet_addr,
+	}
+	err = s.storage.CreateUpdateQqoken(qqoken)
+	if err != nil {
+		log.Printf("error upserting qqoken: %v\n", err)
+	}
+
+	tmpl, _ = template.New("").Parse(qlaimWalletSetReplyTemplate)
 	type tmplData struct {
 		Message   tgMessage
 		QQoken    storage.QQoken
 		WebAppUrl string
 	}
+	rsp.Header().Set("Content-Type", "application/json")
+	err = tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, QQoken: *qqoken})
+	if err != nil {
+		log.Printf("error executing template: %v\n", err)
+	}
+
+}
+
+var qlaimQqokenReadyReplyTemplate = `{
+	"method": "sendMessage",
+	"chat_id": "{{.Message.Chat.Id}}",
+	"text": "{{if .Message.User.Username}}{{.Message.User.Username}}{{else}}#{{.Message.Chat.Id}}{{end}}, qQoken №{{.QQoken.Qqoken_id}} '{{.QQoken.Qqoken_addr}}' is already created for you!\n\ncheck here: https://tonviewer.com/{{.QQoken.Qqoken_addr}}?section=nft\n\n",
+	"reply_markup": "{\"inline_keyboard\": [[{\"text\": \"tonviewer\", \"web_app\": {\"url\": \"https://tonviewer.com/{{.QQoken.Qqoken_addr}}\"}}]]}"
+}`
+
+func (s *qTGHooker) tgHookQqokenReadyHandler(rsp http.ResponseWriter, msg tgMessage, qqoken *storage.QQoken) {
+	var err error
+	var tmpl *template.Template
+	if qqoken == nil || qqoken.Qqoken_id == "" {
+		log.Printf("qqoken not set: %v\n", qqoken)
+		return
+	}
+	log.Printf("qqoken already set: %v\n", qqoken)
+	tmpl, _ = template.New("").Parse(qlaimQqokenReadyReplyTemplate)
+	type tmplData struct {
+		Message   tgMessage
+		QQoken    storage.QQoken
+		WebAppUrl string
+	}
+
 	rsp.Header().Set("Content-Type", "application/json")
 	err = tmpl.Execute(rsp, tmplData{Message: msg, WebAppUrl: s.Opts.webappURL, QQoken: *qqoken})
 	if err != nil {

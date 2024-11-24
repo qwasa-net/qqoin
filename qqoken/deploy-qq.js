@@ -193,8 +193,8 @@ function transfer_qqoken(qqoken_addr, qqoken_id, owner_addr, content) {
 function build_qqoken_content(qqoken_id, value) {
     let meta = JSON.parse(JSON.stringify(QQOKEN_ON_DATA));
     if (value) {
-        meta["description"] = `·✦· qQoken #${qqoken_id} 🗲✹🗲 value: ${value} qQoins ·✦·`;
-        meta["name"] = `qQoken #${qqoken_id}`;
+        meta["description"] = `··✦· qQoken #${qqoken_id} ·✹· value: ${value} qQoins ·✦··`;
+        meta["name"] = `qQoken №${qqoken_id}`;
     }
     meta["uri"] = QQOKEN_BASE_URI + qqoken_id;
     console.log("meta:", meta);
@@ -314,10 +314,11 @@ function do_the_do(params) {
     }
 
     // [3] transfer qqoken
-    if (params.value && params.owner_addr) {
+    if (params.value && params.owner_addr && params.qqoken_id) {
         console.log("\n[3] transfer qqoken");
         let owner_addr = Address.parse(params.owner_addr);
         let value = params.value;
+        let qqoken_id = params.qqoken_id;
         let qqoken_content = build_onchain_meta(build_qqoken_content(qqoken_id, value));
         transfer_qqoken(qqoken_addr, qqoken_id, owner_addr, qqoken_content);
     }

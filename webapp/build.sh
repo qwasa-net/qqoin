@@ -4,10 +4,10 @@ set -e -u -o pipefail
 echo "*** QQoin TG Web App build script *** ***"
 echo ""
 
-JSMIN_BIN=`which terser`
-CSSMIN_BIN=`which cleancss`
-O5_BIN=`which o5`
-CONVERT_BIN=`which convert`
+JSMIN_BIN=`which tersersss || true`
+CSSMIN_BIN=`which cleancss || true`
+O5_BIN=`which o5 || true`
+CONVERT_BIN=`which convert || true`
 
 echo "*** build tools:"
 echo "JSMIN_BIN=${JSMIN_BIN}  # terser - JavaScript parser and mangler/compressor and beautifier toolkit"
@@ -20,7 +20,7 @@ if [ -n "${JSMIN_BIN}" ] && [ -n "${CSSMIN_BIN}" ] && [ -n "${O5_BIN}" ] && [ -n
 then
     true  # all tools found
 else
-    echo "*** build tools missing ***"
+    echo "*** some required tools from the build kit are missing 8/ ***"
     exit 1
 fi
 
