@@ -57,7 +57,7 @@ deploy_demo: build
 	ssh $(DEPLOY_HOST) ' \
 	useradd -d /home/qqoin -m -g nogroup -s /bin/bash qqoin; \
 	grep qqoin /etc/passwd; \
-	systemctl stop qqoin-backend.service; \
+	systemctl stop qqoin-backend.service || true; \
 	'
 
 	scp $(BACK_DIR)/src/qqoin.backend $(DEPLOY_HOST):/home/qqoin/qqoin.backend
@@ -71,6 +71,7 @@ deploy_demo: build
 
 	ssh $(DEPLOY_HOST) '\
 	whoami; \
+	chmod -v 755 /home/qqoin; \
 	chmod -v 700 /home/qqoin/qqoin.backend /home/qqoin/qqoin.env; \
 	mkdir -pv /home/qqoin/logs /home/qqoin/db; \
 	chmod -Rv 755 /home/qqoin/logs /home/qqoin/db /home/qqoin/webapp; \
@@ -80,8 +81,8 @@ deploy_demo: build
 	systemctl reload nginx;\
 	'
 
-	curl -i https://qqoin.$(QQOIN_WEB_BASE_HOST)/ && echo "."
-	curl -i https://qqoin-api.$(QQOIN_WEB_BASE_HOST)/api/ping/ && echo "."
+	timeout 10s curl -i https://qqoin.$(QQOIN_WEB_BASE_HOST)/ && echo "."
+	timeout 10s curl -i https://qqoin-api.$(QQOIN_WEB_BASE_HOST)/api/ping/ && echo "."
 
 
 register_tghook: QQOIN_WEB_BASE_HOST ?= qqoin.qq
